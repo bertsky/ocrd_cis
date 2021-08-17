@@ -332,7 +332,13 @@
 				"dpi": {
 					"type": "number",
 					"format": "float",
-					"description": "pixel density in dots per inch (overrides any meta-data in the images); disabled when zero or negative; when disabled and no meta-data is found, 300 is assumed",
+					"description": "input pixel density in dots per inch (overrides any meta-data in the images); disabled when zero or negative; when disabled and no meta-data is found, 300 is assumed",
+					"default": 0
+				},
+				"use-dpi": {
+					"type": "number",
+					"format": "float",
+					"description": "runtime pixel density in dots per inch (will be resampled from input DPI during processing - can be used to sacrifice detail for speed); disabled when zero or negative; when disabled or `dpi` is disabled and no meta-data is found, no resampling occurs",
 					"default": 0
 				},
 				"level-of-operation": {

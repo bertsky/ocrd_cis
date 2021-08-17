@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import os.path
+from PIL import Image
 import numpy as np
 from skimage import draw
 from skimage.morphology import convex_hull_image
@@ -242,7 +243,21 @@ class OcropySegment(Processor):
                 LOG.info('Page "%s" uses %f DPI', page_id, dpi)
                 zoom = 300.0/dpi
             else:
+                dpi = 0
                 zoom = 1
+            if dpi > 0 and not dpi * 0.9 < self.parameter['use-dpi'] < dpi * 1.1:
+                zoomed = self.parameter['use-dpi'] / dpi
+                LOG.info('Page "%s" will use %f instead of %f DPI', page_id, dpi, self.parameter['use-dpi'])
+                page_image = page_image.resize(
+                    (int(page_image.width * zoomed),
+                     int(page_image.height * zoomed)),
+                    resample=Image.BICUBIC)
+                transform = page_coords['transform']
+                transform = scale_coordinates(transform, [zoomed, zoomed])
+                page_coords['transform'] = transform
+                zoom /= zoomed
+            else:
+                zoomed = 1.0
 
             # aggregate existing regions so their foreground can be ignored
             ignore = (page.get_ImageRegion() +
@@ -297,8 +312,8 @@ class OcropySegment(Processor):
                     ro.set_OrderedGroup(rogroup)
                 # go get TextRegions with TextLines (and SeparatorRegions):
                 self._process_element(page, ignore, page_image, page_coords,
-                                      page_id, file_id,
-                                      input_file.pageId, zoom, rogroup=rogroup)
+                                      page_id, file_id, input_file.pageId,
+                                      zoom=zoom, scaled=zoomed, rogroup=rogroup)
                 if (not rogroup.get_RegionRefIndexed() and
                     not rogroup.get_OrderedGroupIndexed() and
                     not rogroup.get_UnorderedGroupIndexed()):
@@ -353,8 +368,8 @@ class OcropySegment(Processor):
                         reading_order[region.id] = roelem
                     # go get TextRegions with TextLines (and SeparatorRegions)
                     self._process_element(region, subignore, region_image, region_coords,
-                                          region.id, file_id + '_' + region.id,
-                                          input_file.pageId, zoom, rogroup=roelem)
+                                          region.id, file_id + '_' + region.id, input_file.pageId,
+                                          zoom=zoom, scaled=zoomed, rogroup=roelem)
             else: # 'region'
                 regions = list(page.get_TextRegion())
                 # besides top-level text regions, line-segment any table cells,
@@ -389,8 +404,8 @@ class OcropySegment(Processor):
                         ignore = []
                     # go get TextLines
                     self._process_element(region, ignore, region_image, region_coords,
-                                          region.id, file_id + '_' + region.id,
-                                          input_file.pageId, zoom)
+                                          region.id, file_id + '_' + region.id, input_file.pageId,
+                                          zoom=zoom, scaled=zoomed)
 
             # update METS (add the PAGE file):
             file_path = os.path.join(self.output_file_grp, file_id + '.xml')
@@ -405,7 +420,8 @@ class OcropySegment(Processor):
             LOG.info('created file ID: %s, file_grp: %s, path: %s',
                      file_id, self.output_file_grp, out.local_filename)
 
-    def _process_element(self, element, ignore, image, coords, element_id, file_id, page_id, zoom=1.0, rogroup=None):
+    def _process_element(self, element, ignore, image, coords, element_id, file_id, page_id,
+                         zoom=1.0, scaled=1.0, rogroup=None):
         """Add PAGE layout elements by segmenting an image.
 
         Given a PageType, TableRegionType or TextRegionType ``element``, and
@@ -665,6 +681,11 @@ class OcropySegment(Processor):
             # annotate a text/image-separated image
             element_array[sepmask] = np.amax(element_array) # clip to white/bg
             image_clipped = array2pil(element_array)
+            if scaled != 1.0:
+                image_clipped = image_clipped.resize(
+                    (int(image_clipped.width / scaled + 0.5),
+                     int(image_clipped.height / scaled + 0.5)),
+                    resample=Image.BICUBIC)
             file_path = self.workspace.save_image_file(
                 image_clipped, file_id + '.IMG-CLIP',
                 page_id=page_id,
@@ -704,6 +725,11 @@ class OcropySegment(Processor):
             # annotate a text/image-separated image
             element_array[sep_bin] = np.amax(element_array) # clip to white/bg
             image_clipped = array2pil(element_array)
+            if scaled != 1.0:
+                image_clipped = image_clipped.resize(
+                    (int(image_clipped.width / scaled + 0.5),
+                     int(image_clipped.height / scaled + 0.5)),
+                    resample=Image.BICUBIC)
             file_path = self.workspace.save_image_file(
                 image_clipped, file_id + '.IMG-CLIP',
                 page_id=page_id,
@@ -873,3 +899,22 @@ def page_subgroup_in_reading_order(roelem):
         roelem2.parent_object_ = roelem.parent_object_
         return roelem2
     return None
+
+# TODO: move to core's ocrd_utils.image
+def scale_coordinates(transform, factors):
+    """Compose an affine coordinate transformation with a proportional scaling.
+
+    Given a numpy array ``transform`` of an existing transformation
+    matrix in homogeneous (3d) coordinates, and a numpy array
+    ``factors`` of the scaling factors, calculate the affine
+    coordinate transform corresponding to the composition of both
+    transformations.
+    
+    Return a numpy array of the resulting affine transformation matrix.
+    """
+    LOG = getLogger('ocrd_utils.coords.scale_coordinates')
+    LOG.debug('scaling coordinates by %s', str(factors))
+    scale = np.eye(3)
+    scale[0, 0] = factors[0]
+    scale[1, 1] = factors[1]
+    return np.dot(scale, transform)
