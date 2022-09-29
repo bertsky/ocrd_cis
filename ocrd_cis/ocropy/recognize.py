@@ -103,7 +103,7 @@ class OcropyRecognize(Processor):
 
     def get_model(self):
         """Search for the model file.  First checks if
-        parameter['model'] is a valid readeable file and returns it.
+        parameter['model'] is a valid readable file and returns it.
         If not, it checks if the model can be found in the
         dirname(__file__)/models/ directory."""
         canread = lambda p: os.path.isfile(p) and os.access(p, os.R_OK)

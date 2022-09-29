@@ -360,7 +360,7 @@ class MLP(Network):
 
 def ffunc(x):
     "Nonlinearity used for gates."
-    # cliping to avoid overflows
+    # clipping to avoid overflows
     return 1.0/(1.0+np.exp(np.clip(-x,-20,20)))
 def fprime(x,y=None):
     "Derivative of nonlinearity used for gates."

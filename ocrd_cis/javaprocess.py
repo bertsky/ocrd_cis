@@ -63,7 +63,7 @@ class JavaProcess:
 
     def exe(self):
         """
-        Run the process with no imput returning no output.
+        Run the process with no input returning no output.
         """
         cmd = self.get_cmd()
         self.log.info('command: %s', " ".join(cmd))

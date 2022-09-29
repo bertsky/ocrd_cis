@@ -93,7 +93,7 @@ class OcropyResegment(Processor):
         taking the majority label. Spread these foreground labels into the
         background and find contour polygons for them. For each line, calculate
         the concave hull polygon of its constituent contours. If the foreground
-        and background overlap is sufficent, then annotate that polygon as new
+        and background overlap is sufficient, then annotate that polygon as new
         coordinates.
 
         Produce a new output file by serialising the resulting hierarchy.

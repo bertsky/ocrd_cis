@@ -635,7 +635,7 @@ def remove_hlines(binary,scale,maxsize=10):
     #DSAVE('hlines h-opened', hlines)
     return binary-hlines
         
-# like remove_hlines, but much more robust (analoguous to compute_separators_morph)
+# like remove_hlines, but much more robust (analogous to compute_separators_morph)
 @checks(ABINARY2,NUMBER)
 def compute_hlines(binary, scale,
                    hlminwidth=10,
@@ -1114,7 +1114,7 @@ def hmerge_line_seeds(binary, seeds, scale, threshold=0.8, seps=None):
 # - with tighter polygonal spread around foreground
 # - with spread of line labels against separator labels
 # - with baseline extraction
-# - return bg line and sep labels intead of just fg line labels
+# - return bg line and sep labels instead of just fg line labels
 # - return baseline coords, too
 @checks(ABINARY2)
 def compute_segmentation(binary,

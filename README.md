@@ -115,7 +115,7 @@ path using `ocrd-cis-data -model` (see below for a description of
 `ocrd-cis-data`).  To use this model (or any other model) the `model`
 parameter in the configuration file must be set to the path of the
 model to use.  Be aware that the models are trained with a specific
-maximal number of OCR's (usally 2) and that is not possible to use
+maximal number of OCR's (usually 2) and that is not possible to use
 more OCR's than the number used for training (it is possible to use
 less, though).
 
@@ -132,7 +132,7 @@ additional OCR recognition has to be done and secondly the multiple
 OCR's have to be aligned (you can also take a look to the function
 `ocrd_cis_align` in the [tests](tests/test_lib.bash)).  Assuming an
 original recognition as file group `OCR1` on the segmented document of
-file group `SEG`, the folloing commands can be used:
+file group `SEG`, the following commands can be used:
 
 ```sh
 ocrd-ocropus-recognize -I SEG -O OCR2 ... # additional OCR
@@ -148,7 +148,7 @@ it aligns in order.
 
 Arguments:
  * `--parameter` path to configuration file
- * `--input-file-grp` comma seperated list of the input file groups;
+ * `--input-file-grp` comma separated list of the input file groups;
    first input file group is the master OCR; if there is a ground
    truth (for evaluation) it must be the last file group in the list
  * `--output-file-grp` name of the file group for the aligned result
