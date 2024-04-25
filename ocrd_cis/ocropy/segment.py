@@ -11,6 +11,7 @@ from shapely.geometry import Polygon, LineString
 from shapely.prepared import prep
 from shapely.ops import unary_union, nearest_points
 from shapely.validation import explain_validity
+from shapely import set_precision
 
 from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import (
@@ -931,37 +932,105 @@ def join_polygons(polygons, loc='', scale=20):
 
 def join_baselines(baselines, loc=''):
     LOG = getLogger('processor.OcropyResegment')
-    result = []
-    def add_baseline(baseline):
-        nonlocal result
-        base_x = [pt[0] for pt in result]
-        base_left = min(base_x, default=0)
-        base_right = max(base_x, default=0)
-        left = baseline.bounds[0]
-        right = baseline.bounds[2]
-        if baseline.coords[0][0] > baseline.coords[-1][0]:
-            baseline.coords = list(baseline.coords[::-1])
-        if left > base_right:
-            result.extend(baseline.coords)
-        elif right < base_left:
-            result = list(baseline.coords) + result
-        else:
-            LOG.warning("baseline part crosses existing x in %s", loc)
-            return
-        assert all(p1[0] < p2[0] for p1, p2 in zip(result[:-1], result[1:])), result
+    lines = []
     for baseline in baselines:
         if (baseline.is_empty or
             baseline.geom_type in ['Point', 'MultiPoint']):
             continue
-        if (baseline.geom_type == 'GeometryCollection' or
-            baseline.geom_type.startswith('Multi')):
+        elif baseline.geom_type == 'MultiLineString':
+            lines.extend(baseline.geoms)
+        elif baseline.geom_type == 'LineString':
+            lines.append(baseline)
+        elif baseline.geom_type == 'GeometryCollection':
             for geom in baseline.geoms:
-                add_baseline(geom)
-            continue
-        add_baseline(baseline)
-    if len(result) < 2:
+                if geom.geom_type == 'LineString':
+                    lines.append(geom)
+                elif geom.geom_type == 'MultiLineString':
+                    lines.extend(geom)
+                else:
+                    LOG.warning("ignoring baseline subtype %s in %s", geom.geom_type, loc)
+        else:
+            LOG.warning("ignoring baseline type %s in %s", baseline.geom_type, loc)
+    nlines = len(lines)
+    if nlines == 0:
         return None
-    return LineString(result)
+    elif nlines == 1:
+        return lines[0]
+    # Shapely cannot reorder:
+    #result = line_merge(MultiLineString([line.normalize() for line in lines]))
+    # find min-dist path through all lines (travelling salesman)
+    pairs = itertools.combinations(range(nlines), 2)
+    dists = np.eye(nlines, dtype=float)
+    for i, j in pairs:
+        dist = lines[i].distance(lines[j])
+        if dist < 1e-5:
+            dist = 1e-5 # if pair merely touches, we still need to get an edge
+        dists[i, j] = dist
+        dists[j, i] = dist
+    dists = minimum_spanning_tree(dists, overwrite=True)
+    assert dists.nonzero()[0].size, dists
+    # get path
+    chains = []
+    for prevl, nextl in zip(*dists.nonzero()):
+        foundchains = []
+        for chain in chains:
+            if chain[0] == prevl:
+                found = chain, 0, nextl
+            elif chain[0] == nextl:
+                found = chain, 0, prevl
+            elif chain[-1] == prevl:
+                found = chain, -1, nextl
+            elif chain[-1] == nextl:
+                found = chain, -1, prevl
+            else:
+                continue
+            foundchains.append(found)
+        if len(foundchains):
+            assert len(foundchains) <= 2, foundchains
+            chain, pos, node = foundchains.pop()
+            if len(foundchains):
+                otherchain, otherpos, othernode = foundchains.pop()
+                assert node != othernode
+                assert chain[pos] == othernode
+                assert otherchain[otherpos] == node
+                if pos < 0 and otherpos < 0:
+                    chain.extend(reversed(otherchain))
+                    chains.remove(otherchain)
+                elif pos < 0 and otherpos == 0:
+                    chain.extend(otherchain)
+                    chains.remove(otherchain)
+                elif pos == 0 and otherpos == 0:
+                    otherchain.extend(reversed(chain))
+                    chains.remove(chain)
+                elif pos == 0 and otherpos < 0:
+                    otherchain.extend(chain)
+                    chains.remove(chain)
+            elif pos < 0:
+                chain.append(node)
+            else:
+                chain.insert(0, node)
+        else:
+            chains.append([prevl, nextl])
+    if len(chains) > 1:
+        LOG.warning("baseline merge impossible (no spanning tree) in %s", loc)
+        return None
+    assert len(chains) == 1, chains
+    assert len(chains[0]) == nlines, chains[0]
+    path = chains[0]
+    # get points
+    coords = []
+    for node in path:
+        line = lines[node]
+        coords.extend(line.normalize().coords)
+    result = LineString(coords)
+    if result.is_empty:
+        LOG.warning("baseline merge is empty in %s", loc)
+        return None
+    assert result.geom_type == 'LineString', result.wkt
+    result = set_precision(result, 1.0)
+    if result.geom_type != 'LineString' or not result.is_valid:
+        result = LineString(np.round(line.coords))
+    return result
 
 def page_get_reading_order(ro, rogroup):
     """Add all elements from the given reading order group to the given dictionary.
