@@ -225,7 +225,7 @@
 				"extend_margins": {
 					"type": "number",
 					"format": "integer",
-					"description": "number of pixels to extend the input polygons in all directions",
+					"description": "(ignored)",
 					"default": 3
 				}
 			}

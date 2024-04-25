@@ -183,7 +183,6 @@ class OcropyResegment(Processor):
     def _process_segment(self, parent, parent_image, parent_coords, page_id, zoom, lines, ignore):
         LOG = getLogger('processor.OcropyResegment')
         threshold = self.parameter['min_fraction']
-        margin = self.parameter['extend_margins']
         method = self.parameter['method']
         # prepare line segmentation
         parent_array = pil2array(parent_image)
@@ -206,32 +205,34 @@ class OcropyResegment(Processor):
         line_labels = np.zeros_like(parent_bin, bool)
         line_labels = np.tile(line_labels[np.newaxis], (len(lines), 1, 1))
         line_polygons = []
-        for i, segment in enumerate(lines):
-            if self.parameter['baseline_only'] and segment.Baseline:
-                segment_baseline = baseline_of_segment(segment, parent_coords)
-                segment_polygon = polygon_from_baseline(segment_baseline, 30/zoom)
+        for i, line in enumerate(lines):
+            if self.parameter['baseline_only'] and line.Baseline:
+                line_base = baseline_of_segment(line, parent_coords)
+                line_poly = polygon_from_baseline(line_base, 30/zoom)
             else:
-                segment_polygon = coordinates_of_segment(segment, parent_image, parent_coords)
-                segment_polygon = make_valid(Polygon(segment_polygon)).buffer(margin)
-            line_polygons.append(prep(segment_polygon))
-            segment_polygon = np.array(segment_polygon.exterior.coords, int)[:-1]
-            # draw.polygon: If any segment_polygon lies outside of parent
+                line_poly = coordinates_of_segment(line, parent_image, parent_coords)
+                line_poly = make_valid(Polygon(line_poly))
+            line_polygons.append(line_poly)
+        line_polygons = list(map(prep, line_polygons))
+        for i, line_polygon in enumerate(line_polygons):
+            polygon = np.array(line_polygon.context.exterior.coords, int)[:-1]
+            # draw.polygon: If any line_polygon lies outside of parent
             # (causing negative/above-max indices), either fully or partially,
             # then this will silently ignore them. The caller does not need
             # to concern herself with this.
-            segment_y, segment_x = draw.polygon(segment_polygon[:, 1],
-                                                segment_polygon[:, 0],
-                                                parent_bin.shape)
-            line_labels[i, segment_y, segment_x] = True
+            line_y, line_x = draw.polygon(polygon[:, 1],
+                                          polygon[:, 0],
+                                          parent_bin.shape)
+            line_labels[i, line_y, line_x] = True
         # only text region(s) may contain new text lines
-        for i, segment in enumerate(set(line.parent_object_ for line in lines)):
+        for i, region in enumerate(set(line.parent_object_ for line in lines)):
             LOG.debug('unmasking area of text region "%s" for "%s"',
-                      segment.id, page_id if fullpage else parent.id)
-            segment_polygon = coordinates_of_segment(segment, parent_image, parent_coords)
-            segment_polygon = make_valid(Polygon(segment_polygon)).buffer(margin)
-            segment_polygon = np.array(segment_polygon.exterior.coords, int)[:-1]
-            ignore_bin[draw.polygon(segment_polygon[:, 1],
-                                    segment_polygon[:, 0],
+                      region.id, page_id if fullpage else parent.id)
+            region_polygon = coordinates_of_segment(region, parent_image, parent_coords)
+            region_polygon = make_valid(Polygon(region_polygon))
+            region_polygon = np.array(region_polygon.exterior.coords, int)[:-1]
+            ignore_bin[draw.polygon(region_polygon[:, 1],
+                                    region_polygon[:, 0],
                                     parent_bin.shape)] = False
         # mask/ignore overlapping neighbours
         for i, segment in enumerate(ignore):
@@ -295,11 +296,10 @@ class OcropyResegment(Processor):
         new_line_polygons, new_line_labels = masks2polygons(
             new_line_labels, new_baselines, parent_bin, '%s "%s"' % (tag, parent.id),
             min_area=640/zoom/zoom)
-        DSAVE('line_labels', [np.mean(line_labels, axis=0), parent_bin])
+        DSAVE('line_labels', [np.argmax(np.insert(line_labels, 0, 0, axis=0), axis=0), parent_bin])
         DSAVE('new_line_labels', [new_line_labels, parent_bin])
-        new_line_polygons, new_baselines = list(zip(*[
-            (make_valid(Polygon(line_poly)), LineString(baseline))
-            for _, line_poly, baseline in new_line_polygons])) or ([], [])
+        new_line_polygons, new_baselines = list(zip(*[(Polygon(poly), LineString(base))
+                                                      for _, poly, base in new_line_polygons])) or ([], [])
         # polygons for intersecting pairs
         intersections = dict()
         # ratio of overlap between intersection and new line
@@ -375,7 +375,6 @@ class OcropyResegment(Processor):
             keep1[ind1] = False
             #keep2[ind2] = False
         # validate assignments retain enough area and do not loose unassigned matches
-        line_polygons = [poly.context.buffer(-margin) for poly in line_polygons]
         for j, line in enumerate(lines):
             new_lines = np.nonzero(assignments == j)[0]
             if not np.prod(new_lines.shape):
@@ -404,9 +403,8 @@ class OcropyResegment(Processor):
             # combine all assigned new lines to single outline polygon
             if len(new_lines) > 1:
                 LOG.debug("joining %d new line polygons for '%s'", len(new_lines), line.id)
-            new_polygon = join_polygons([intersections[(i, j)]
+            new_polygon = join_polygons([new_line_polygons[i] #intersections[(i, j)]
                                          for i in new_lines], loc=line.id, scale=scale)
-            line_polygons[j] = new_polygon
             new_baseline = join_baselines([new_polygon.intersection(new_baselines[i])
                                            for i in new_lines], loc=line.id)
             # convert back to absolute (page) coordinates:
@@ -422,6 +420,7 @@ class OcropyResegment(Processor):
                 new_baseline = coordinates_for_segment(new_baseline.coords,
                                                        parent_image, parent_coords)
                 line.set_Baseline(BaselineType(points=points_from_polygon(new_baseline)))
+            line_polygons[j] = prep(new_polygon)
             # now also ensure the assigned lines do not overlap other existing lines
             for i in new_lines:
                 for otherj in np.nonzero(fits_fg[i] > 0.1)[0]:
@@ -429,7 +428,7 @@ class OcropyResegment(Processor):
                         continue
                     otherline = lines[otherj]
                     LOG.debug("subtracting new '%s' from overlapping '%s'", line.id, otherline.id)
-                    other_polygon = diff_polygons(line_polygons[otherj], new_polygon)
+                    other_polygon = diff_polygons(line_polygons[otherj].context, new_polygon)
                     if other_polygon.is_empty:
                         continue
                     # convert back to absolute (page) coordinates:
