@@ -312,52 +312,68 @@ class OcropyResegment(Processor):
         for i, new_line_poly in enumerate(new_line_polygons):
             for j, line_poly in enumerate(line_polygons):
                 # too strict: .contains
-                if line_poly.intersects(new_line_poly):
-                    inter = make_intersection(line_poly.context, new_line_poly)
-                    if not inter:
-                        continue
-                    new_line_mask = (new_line_labels == i+1) & parent_bin
-                    line_mask = line_labels[j] & parent_bin
-                    inter_mask = new_line_mask & line_mask
-                    if (not np.count_nonzero(inter_mask) or
-                        not np.count_nonzero(new_line_mask) or
-                        not np.count_nonzero(line_mask)):
-                        continue
-                    intersections[(i, j)] = inter
-                    fits_bg[i, j] = inter.area / new_line_poly.area
-                    covers_bg[i, j] = inter.area / line_poly.context.area
-                    fits_fg[i, j] = np.count_nonzero(inter_mask) / np.count_nonzero(new_line_mask)
-                    covers_fg[i, j] = np.count_nonzero(inter_mask) / np.count_nonzero(line_mask)
-                    # LOG.debug("new %d old %d (%s): %.1f%% / %.1f%% bg, %.1f%% / %.1f%% fg",
-                    #           i, j, lines[j].id,
-                    #           fits_bg[i,j]*100, covers_bg[i,j]*100,
-                    #           fits_fg[i,j]*100, covers_fg[i,j]*100)
-        # assign new lines to existing lines, if possible
-        assignments = np.ones(len(new_line_polygons), int) * -1
-        for i, new_line_poly in enumerate(new_line_polygons):
-            if not fits_bg[i].any():
-                LOG.debug("new line %d fits no existing line's background", i)
+                if not line_poly.intersects(new_line_poly):
+                    continue
+                inter = make_intersection(line_poly.context, new_line_poly)
+                if not inter:
+                    continue
+                new_line_mask = (new_line_labels == i+1) & parent_bin
+                line_mask = line_labels[j] & parent_bin
+                inter_mask = new_line_mask & line_mask
+                if (not np.count_nonzero(inter_mask) or
+                    not np.count_nonzero(new_line_mask) or
+                    not np.count_nonzero(line_mask)):
+                    continue
+                intersections[(i, j)] = inter
+                fits_bg[i, j] = inter.area / new_line_poly.area
+                covers_bg[i, j] = inter.area / line_poly.context.area
+                fits_fg[i, j] = np.count_nonzero(inter_mask) / np.count_nonzero(new_line_mask)
+                covers_fg[i, j] = np.count_nonzero(inter_mask) / np.count_nonzero(line_mask)
+                # LOG.debug("new %d old %d (%s): %.1f%% / %.1f%% bg, %.1f%% / %.1f%% fg",
+                #           i, j, lines[j].id,
+                #           fits_bg[i,j]*100, covers_bg[i,j]*100,
+                #           fits_fg[i,j]*100, covers_fg[i,j]*100)
+        # assign existing lines to new lines (1:n), if possible
+        # start from best matches (forced alignment)
+        dim1 = len(new_line_polygons)
+        dim2 = len(line_polygons)
+        idx1 = np.arange(dim1)
+        idx2 = np.arange(dim2)
+        keep1 = np.ones(dim1, bool)
+        keep2 = np.ones(dim2, bool)
+        assignments = -1 * np.ones(dim1, int)
+        for _ in range(dim1):
+            fit_bg_view = fits_bg[np.ix_(keep1, keep2)]
+            if not fit_bg_view.size:
+                break
+            cov_bg_view = covers_bg[np.ix_(keep1, keep2)]
+            fit_fg_view = fits_fg[np.ix_(keep1, keep2)]
+            cov_fg_view = covers_fg[np.ix_(keep1, keep2)]
+            priority = cov_fg_view * cov_bg_view
+            ind1, ind2 = np.unravel_index(np.argmax(priority, axis=None), priority.shape)
+            fit_fg = fit_fg_view[ind1, ind2]
+            fit_bg = fit_bg_view[ind1, ind2]
+            cov_fg = cov_fg_view[ind1, ind2]
+            cov_bg = cov_bg_view[ind1, ind2]
+            # return to full view and assign next
+            ind1 = idx1[keep1][ind1]
+            ind2 = idx2[keep2][ind2]
+            #new_poly = new_line_polygons[ind1]
+            #poly = line_polygons[ind2]
+            # assignment must be new
+            assert assignments[ind1] < 0
+            assert keep1[ind1]
+            assert keep2[ind2]
+            # minimum threshold
+            if not (fit_bg > 0.6 and fit_fg > 0.7):
+                # skip next time
+                # LOG.debug("match for %s too large: %d%%fg / %d%%bg", lines[ind2].id, fit_fg*100, fit_bg*100)
+                covers_bg[ind1, ind2] = 0
+                covers_fg[ind1, ind2] = 0
                 continue
-            if not fits_fg[i].any():
-                LOG.debug("new line %d fits no existing line's foreground", i)
-                continue
-            fits = (fits_bg[i] > 0.6) & (fits_fg[i] > 0.9)
-            if not fits.any():
-                j = np.argmax(fits_bg[i] * fits_fg[i])
-                LOG.debug("best fit '%s' for new line %d fits only %.1f%% bg / %.1f%% fg",
-                          lines[j].id, i, fits_bg[i,j] * 100, fits_fg[i,j] * 100)
-                continue
-            covers = covers_bg[i] * covers_fg[i] * fits
-            j = np.argmax(covers)
-            line = lines[j]
-            inter_polygon = intersections[(i,j)]
-            new_line_polygon = new_line_polygons[i]
-            new_center = inter_polygon.centroid
-            center = new_line_polygon.centroid
-            # FIXME: apply reasonable threshold for centroid distance
-            LOG.debug("new line for '%s' has centroid distance %.2f",
-                      line.id, center.distance(new_center))
-            assignments[i] = j
+            assignments[ind1] = ind2
+            keep1[ind1] = False
+            #keep2[ind2] = False
         # validate assignments retain enough area and do not loose unassigned matches
         line_polygons = [poly.context.buffer(-margin) for poly in line_polygons]
         for j, line in enumerate(lines):
