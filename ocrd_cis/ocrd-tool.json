@@ -222,6 +222,12 @@
 					"description": "share of foreground pixels that must be retained by the output polygons",
 					"default": 0.75
 				},
+				"spread": {
+					"type": "number",
+					"format": "float",
+					"description": "distance in points (pt) from the foreground to project textline labels into the background for polygonal contours; if zero, project half a scale/capheight",
+					"default": 2.4
+				},
 				"extend_margins": {
 					"type": "number",
 					"format": "integer",

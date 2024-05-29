@@ -184,6 +184,7 @@ class OcropyResegment(Processor):
         LOG = getLogger('processor.OcropyResegment')
         threshold = self.parameter['min_fraction']
         method = self.parameter['method']
+        maxdist = self.parameter['spread']/zoom*300/72 # in pt
         # prepare line segmentation
         parent_array = pil2array(parent_image)
         #parent_array, _ = common.binarize(parent_array, maxskew=0) # just in case still raw
@@ -273,19 +274,19 @@ class OcropyResegment(Processor):
                         new_labels[line_labels[i]] = i + 1
                         continue
                     line_baseline = baseline_of_segment(line, parent_coords)
-                    line_polygon = polygon_from_baseline(line_baseline, scale)
+                    line_polygon = polygon_from_baseline(line_baseline, maxdist or scale/2)
                     line_polygon = np.array(line_polygon.exterior.coords, int)[:-1]
                     line_y, line_x = draw.polygon(line_polygon[:, 1],
                                                   line_polygon[:, 0],
                                                   parent_bin.shape)
                     new_labels[line_y, line_x] = i + 1
             spread_dist(lines, line_labels, new_labels, parent_bin, components, parent_coords,
-                        scale=scale, loc=parent.id, threshold=threshold)
+                        maxdist=maxdist or scale/2, loc=parent.id, threshold=threshold)
             return
         try:
             new_line_labels, new_baselines, _, _, _, scale = compute_segmentation(
-                parent_bin, seps=ignore_bin, zoom=zoom, fullpage=fullpage,
-                maxseps=0, maxcolseps=len(ignore), maximages=0)
+                parent_bin, seps=ignore_bin, zoom=zoom, spread_dist=maxdist or scale/2,
+                fullpage=fullpage, maxseps=0, maxcolseps=len(ignore), maximages=0)
         except Exception as err:
             LOG.error('Cannot line-segment %s "%s": %s',
                       tag, page_id if fullpage else parent.id, err)
@@ -441,7 +442,7 @@ class OcropyResegment(Processor):
                     otherline.get_Coords().set_points(points_from_polygon(other_polygon))
 
 def spread_dist(lines, old_labels, new_labels, binarized, components, coords,
-                scale=43, loc='', threshold=0.9):
+                maxdist=43, loc='', threshold=0.9):
     """redefine line coordinates by contourizing spread of connected components propagated from new labels"""
     LOG = getLogger('processor.OcropyResegment')
     DSAVE('seeds', [new_labels, (components>0)])
@@ -452,13 +453,13 @@ def spread_dist(lines, old_labels, new_labels, binarized, components, coords,
     new_labels2 = segmentation.watershed(new_labels2, markers=new_labels, mask=(components > 0))
     DSAVE('propagated', new_labels2)
     # dilate/grow labels from connected components against each other and bg
-    new_labels = morph.spread_labels(new_labels2, maxdist=scale*2)
+    new_labels = morph.spread_labels(new_labels2, maxdist=maxdist)
     DSAVE('spread', new_labels)
     # now propagate again to catch smallest components like punctuation
     new_labels2 = morph.propagate_labels(binarized, new_labels, conflict=0)
     new_labels2 = segmentation.watershed(new_labels2, markers=new_labels, mask=binarized)
     DSAVE('propagated-again', [new_labels2, binarized & (new_labels2==0)])
-    new_labels = morph.spread_labels(new_labels2, maxdist=scale/2)
+    new_labels = morph.spread_labels(new_labels2, maxdist=maxdist/4)
     DSAVE('spread-again', [new_labels, binarized])
     # find polygon hull and modify line coords
     for i, line in enumerate(lines):
@@ -496,7 +497,7 @@ def spread_dist(lines, old_labels, new_labels, binarized, components, coords,
             # get alpha shape
             poly = join_polygons([make_valid(Polygon(contour))
                                   for contour in contours],
-                                 loc=line.id, scale=scale)
+                                 loc=line.id, scale=maxdist)
         poly = poly.exterior.coords[:-1]
         polygon = coordinates_for_segment(poly, None, coords)
         polygon = polygon_for_parent(polygon, line.parent_object_)
