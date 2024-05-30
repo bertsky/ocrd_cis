@@ -8,6 +8,7 @@ jobs:
       PYTHON: python3
     steps:
       - checkout
+      - run: apt-get update && apt-get -y install default-jre-headless
       - run: make install
       - run: make test V=""
 
@@ -20,7 +21,7 @@ jobs:
       - checkout
       - setup_remote_docker: # https://circleci.com/docs/2.0/building-docker-images/
          docker_layer_caching: true
-      - run: make docker TAG=$DOCKER_TAG
+      - run: make docker-build TAG=$DOCKER_TAG
       - run:
           name: Login to Docker Hub
           command: echo "$DOCKERHUB_PASS" | docker login --username "$DOCKERHUB_USER" --password-stdin
