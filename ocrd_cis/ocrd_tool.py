@@ -1,5 +1,5 @@
 import json
-from pkg_resources import resource_string
+from ocrd_utils import resource_string
 
 
 def get_ocrd_tool():
