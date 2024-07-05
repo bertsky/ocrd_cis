@@ -262,7 +262,8 @@ class OcropyResegment(Processor):
                 for i, label in enumerate(labels):
                     distances[i] = morph.dist_labels(label.astype(np.uint8))
                     # normalize the distances of all lines so larger ones do not displace smaller ones
-                    distances[i] = distances[i] / distances[i].max() * 255
+                    if distances[i].any():
+                        distances[i] = distances[i] / distances[i].max() * 255
                 # use depth to flatten overlapping lines as seed labels
                 new_labels = np.argmax(distances, axis=0)
             else:
@@ -496,7 +497,8 @@ def spread_dist(lines, old_labels, new_labels, binarized, components, coords,
         else:
             # get alpha shape
             poly = join_polygons([make_valid(Polygon(contour))
-                                  for contour in contours],
+                                  for contour in contours
+                                  if len(contour) >= 4],
                                  loc=line.id, scale=maxdist)
         poly = poly.exterior.coords[:-1]
         polygon = coordinates_for_segment(poly, None, coords)
