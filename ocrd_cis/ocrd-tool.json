@@ -308,7 +308,33 @@
 					"content-type": "application/gzip",
 					"description": "ocropy model to apply (e.g. fraktur.pyrnn.gz)"
 				}
-			}
+			},
+			"resources": [
+				{
+					"url": "https://github.com/zuphilip/ocropy-models/raw/master/en-default.pyrnn.gz",
+					"name": "en-default.pyrnn.gz",
+					"description": "Default ocropy model for English",
+					"size": 83826134
+				},
+				{
+					"url": "https://github.com/zuphilip/ocropy-models/raw/master/fraktur.pyrnn.gz",
+					"name": "fraktur.pyrnn.gz",
+					"description": "Default ocropy fraktur model",
+					"size": 43882365
+				},
+				{
+					"url": "https://github.com/jze/ocropus-model_fraktur/raw/master/fraktur.pyrnn.gz",
+					"name": "fraktur-jze.pyrnn.gz",
+					"description": "ocropy fraktur model by github.com/jze",
+					"size": 2961298
+				},
+				{
+					"url": "https://github.com/chreul/OCR_Testdata_EarlyPrintedBooks/raw/master/LatinHist-98000.pyrnn.gz",
+					"name": "LatinHist.pyrnn.gz",
+					"description": "ocropy historical latin model by github.com/chreul",
+					"size": 16989864
+				}
+			]
 		},
 		"ocrd-cis-ocropy-segment": {
 			"executable": "ocrd-cis-ocropy-segment",
