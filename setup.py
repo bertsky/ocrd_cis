@@ -47,7 +47,7 @@ setup(
         'scikit-image',
         'networkx',
         'opencv-python-headless',
-        'python-Levenshtein'
+        'rapidfuzz'
     ],
     extras_require={
         'debug': ['matplotlib>3.0.0'],

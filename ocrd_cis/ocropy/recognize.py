@@ -5,7 +5,7 @@ import os.path
 import numpy as np
 from PIL import Image
 
-import Levenshtein
+from rapidfuzz.distance import Levenshtein
 
 from ocrd_utils import (
     getLogger,
