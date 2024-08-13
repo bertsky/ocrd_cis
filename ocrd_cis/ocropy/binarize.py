@@ -1,9 +1,13 @@
 from __future__ import absolute_import
+import logging
 
 import os.path
+import PIL
 import cv2
 import numpy as np
 from PIL import Image
+from os.path import join
+from ocrd_models import OcrdExif
 
 #import kraken.binarization
 
@@ -15,11 +19,10 @@ from ocrd_utils import (
 )
 from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import (
-    to_xml, AlternativeImageType
+    OcrdPage, to_xml, AlternativeImageType
 )
 from ocrd import Processor
 
-from .. import get_ocrd_tool
 from . import common
 from .common import (
     pil2array, array2pil,
@@ -64,18 +67,20 @@ def binarize(pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zo
             raise Exception('unknown binarization method %s' % method)
         return Image.fromarray(th), 0
 
+def determine_zoom(dpi: float, page_image_info: OcrdExif) -> float:
+    if dpi > 0:
+        zoom = 300.0/dpi
+    elif page_image_info.resolution != 1:
+        dpi = page_image_info.resolution
+        if page_image_info.resolutionUnit == 'cm':
+            dpi *= 2.54
+        zoom = 300.0/dpi
+    else:
+        zoom = 1
+    return zoom
 
 class OcropyBinarize(Processor):
-
-    def __init__(self, *args, **kwargs):
-        self.logger = getLogger('processor.OcropyBinarize')
-        self.ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
-        kwargs['version'] = self.ocrd_tool['version']
-        super(OcropyBinarize, self).__init__(*args, **kwargs)
-        if hasattr(self, 'output_file_grp'):
-            # processing context
-            self.setup()
+    logger : logging.Logger
 
     @property
     def executable(self):
@@ -84,16 +89,16 @@ class OcropyBinarize(Processor):
     def setup(self):
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
+        self.logger = getLogger('processor.OcropyBinarize')
         method = self.parameter['method']
         if self.parameter['grayscale'] and method != 'ocropy':
             self.logger.critical(f'Requested method {method} does not support grayscale normalized output')
             raise Exception('only method=ocropy allows grayscale=true')
 
-    def process(self):
+    def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
         """Binarize (and optionally deskew/despeckle) the pages/regions/lines of the workspace.
 
-        Open and deserialise PAGE input files and their respective images,
-        then iterate over the element hierarchy down to the requested
+        THEN Iterate over the PAGE-XML element hierarchy down to the requested
         ``level-of-operation``.
 
         Next, for each file, crop each segment image according to the layout
@@ -109,80 +114,61 @@ class OcropyBinarize(Processor):
 
         Reference each new image in the AlternativeImage of the element.
 
-        Produce a new output file by serialising the resulting hierarchy.
+        Return a PAGE-XML with AlternativeImage and the arguments for ``workspace.save_image_file``.
         """
         level = self.parameter['level-of-operation']
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
+        assert self.workspace
+        self.logger.debug(f'Level of operation: "{level}"')
 
-        for (n, input_file) in enumerate(self.input_files):
-            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
-            file_id = make_file_id(input_file, self.output_file_grp)
+        pcgts = input_pcgts[0]
+        page = pcgts.get_Page()
+        assert page
 
-            pcgts = page_from_file(self.workspace.download_file(input_file))
-            self.add_metadata(pcgts)
-            page_id = pcgts.pcGtsId or input_file.pageId or input_file.ID # (PageType has no id)
-            page = pcgts.get_Page()
-                
-            page_image, page_xywh, page_image_info = self.workspace.image_from_page(
-                page, page_id, feature_filter='binarized')
-            if self.parameter['dpi'] > 0:
-                zoom = 300.0/self.parameter['dpi']
-            elif page_image_info.resolution != 1:
-                dpi = page_image_info.resolution
-                if page_image_info.resolutionUnit == 'cm':
-                    dpi *= 2.54
-                self.logger.info('Page "%s" uses %f DPI', page_id, dpi)
-                zoom = 300.0/dpi
-            else:
-                zoom = 1
-            
-            if level == 'page':
-                self.process_page(page, page_image, page_xywh, zoom,
-                                  input_file.pageId, file_id)
-            else:
-                if level == 'table':
-                    regions = page.get_TableRegion()
-                else: # region
-                    regions = page.get_AllRegions(classes=['Text'], order='reading-order')
-                if not regions:
-                    self.logger.warning('Page "%s" contains no text regions', page_id)
-                for region in regions:
-                    region_image, region_xywh = self.workspace.image_from_segment(
-                        region, page_image, page_xywh, feature_filter='binarized')
-                    if level == 'region':
-                        self.process_region(region, region_image, region_xywh, zoom,
-                                            input_file.pageId, file_id + '_' + region.id)
-                        continue
-                    lines = region.get_TextLine()
-                    if not lines:
-                        self.logger.warning('Page "%s" region "%s" contains no text lines',
-                                            page_id, region.id)
-                    for line in lines:
-                        line_image, line_xywh = self.workspace.image_from_segment(
-                            line, region_image, region_xywh, feature_filter='binarized')
-                        self.process_line(line, line_image, line_xywh, zoom,
-                                          input_file.pageId, region.id,
-                                          file_id + '_' + region.id + '_' + line.id)
+        page_image, page_xywh, page_image_info = self.workspace.image_from_page(page, page_id, feature_filter='binarized')
+        zoom = determine_zoom(self.parameter['dpi'], page_image_info)
+        self.logger.info('Page "%s" uses %f DPI', page_id, self.parameter['dpi'])
+        
+        ret = [pcgts]
+        if level == 'page':
+            try:
+                ret.append(self.process_page(page, page_image, page_xywh, zoom, page_id, output_file_id))
+            except ValueError as e:
+                self.logger.exception(e)
+        else:
+            # TODO
+            raise NotImplementedError
+            if level == 'table':
+                regions = page.get_TableRegion()
+            else: # region
+                regions = page.get_AllRegions(classes=['Text'], order='reading-order')
+            if not regions:
+                self.logger.warning('Page "%s" contains no text regions', page_id)
+            for region in regions:
+                region_image, region_xywh = self.workspace.image_from_segment(
+                    region, page_image, page_xywh, feature_filter='binarized')
+                if level == 'region':
+                    self.process_region(region, region_image, region_xywh, zoom,
+                                        input_file.pageId, file_id + '_' + region.id)
+                    continue
+                lines = region.get_TextLine()
+                if not lines:
+                    self.logger.warning('Page "%s" region "%s" contains no text lines',
+                                        page_id, region.id)
+                for line in lines:
+                    line_image, line_xywh = self.workspace.image_from_segment(
+                        line, region_image, region_xywh, feature_filter='binarized')
+                    self.process_line(line, line_image, line_xywh, zoom,
+                                      input_file.pageId, region.id,
+                                      file_id + '_' + region.id + '_' + line.id)
 
-            # update METS (add the PAGE file):
-            file_path = os.path.join(self.output_file_grp, file_id + '.xml')
-            pcgts.set_pcGtsId(file_id)
-            out = self.workspace.add_file(
-                ID=file_id,
-                file_grp=self.output_file_grp,
-                pageId=input_file.pageId,
-                local_filename=file_path,
-                mimetype=MIMETYPE_PAGE,
-                content=to_xml(pcgts))
-            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
-                             file_id, self.output_file_grp, out.local_filename)
+        return ret
 
-    def process_page(self, page, page_image, page_xywh, zoom, page_id, file_id):
+    def process_page(self, page, page_image, page_xywh, zoom, page_id, file_id) -> tuple[Image.Image, str, str]:
         if not page_image.width or not page_image.height:
-            self.logger.warning("Skipping page '%s' with zero size", page_id)
-            return
+            raise ValueError("Skipping page '%s' with zero size", page_id)
         self.logger.info("About to binarize page '%s'", page_id)
+        assert self.output_file_grp
+
         features = page_xywh['features']
         if 'angle' in page_xywh and page_xywh['angle']:
             # orientation has already been annotated (by previous deskewing),
@@ -216,13 +202,10 @@ class OcropyBinarize(Processor):
         else:
             file_id += '.IMG-BIN'
             features += ',binarized'
-        file_path = self.workspace.save_image_file(
-            bin_image, file_id, self.output_file_grp,
-            page_id=page_id)
+        bin_image_path = join(self.output_file_grp, f'{file_id}.png')
         # update PAGE (reference the image file):
-        page.add_AlternativeImage(AlternativeImageType(
-            filename=file_path,
-            comments=features))
+        page.add_AlternativeImage(AlternativeImageType(filename=bin_image_path, comments=features))
+        return (bin_image, file_id, bin_image_path)
 
     def process_region(self, region, region_image, region_xywh, zoom, page_id, file_id):
         if not region_image.width or not region_image.height:
