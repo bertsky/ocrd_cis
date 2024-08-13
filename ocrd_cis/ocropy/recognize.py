@@ -80,6 +80,7 @@ def recognize(image, pad, network, check=True):
 class OcropyRecognize(Processor):
 
     def __init__(self, *args, **kwargs):
+        self.logger = getLogger('processor.OcropyRecognize')
         self.ocrd_tool = get_ocrd_tool()
         self.pad = 16 # ocropus-rpred default
         self.network = None # set in process
@@ -95,7 +96,8 @@ class OcropyRecognize(Processor):
         return 'ocrd-cis-ocropy-recognize'
 
     def setup(self):
-        self.logger = getLogger('processor.OcropyRecognize')
+        assert_file_grp_cardinality(self.input_file_grp, 1)
+        assert_file_grp_cardinality(self.output_file_grp, 1)
         # from ocropus-rpred:
         self.network = load_object(self.get_model(), verbose=1)
         for x in self.network.walk():

@@ -69,6 +69,7 @@ def padvert(image, range_):
 class OcropyDewarp(Processor):
 
     def __init__(self, *args, **kwargs):
+        self.logger = getLogger('processor.OcropyDewarp')
         self.ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
@@ -82,6 +83,8 @@ class OcropyDewarp(Processor):
         return 'ocrd-cis-ocropy-dewarp'
 
     def setup(self):
+        assert_file_grp_cardinality(self.input_file_grp, 1)
+        assert_file_grp_cardinality(self.output_file_grp, 1)
         # defaults from ocrolib.lineest:
         self.lnorm = lineest.CenterNormalizer(
             params=(self.parameter['range'],
@@ -91,7 +94,6 @@ class OcropyDewarp(Processor):
                     #  dependency between smoothness
                     #  and extra params)
                     0.3))
-        self.logger = getLogger('processor.OcropyDewarp')
 
     def process(self):
         """Dewarp the lines of the workspace.

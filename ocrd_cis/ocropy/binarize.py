@@ -68,6 +68,7 @@ def binarize(pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zo
 class OcropyBinarize(Processor):
 
     def __init__(self, *args, **kwargs):
+        self.logger = getLogger('processor.OcropyBinarize')
         self.ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
@@ -81,10 +82,11 @@ class OcropyBinarize(Processor):
         return 'ocrd-cis-ocropy-binarize'
 
     def setup(self):
-        self.logger = getLogger('processor.OcropyBinarize')
-        if self.parameter['grayscale'] and self.parameter['method'] != 'ocropy':
-            self.logger.critical('requested method %s does not support grayscale normalized output',
-                                 self.parameter['method'])
+        assert_file_grp_cardinality(self.input_file_grp, 1)
+        assert_file_grp_cardinality(self.output_file_grp, 1)
+        method = self.parameter['method']
+        if self.parameter['grayscale'] and method != 'ocropy':
+            self.logger.critical(f'Requested method {method} does not support grayscale normalized output')
             raise Exception('only method=ocropy allows grayscale=true')
 
     def process(self):

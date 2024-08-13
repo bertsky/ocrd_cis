@@ -49,6 +49,7 @@ from .segment import (
 class OcropyResegment(Processor):
 
     def __init__(self, *args, **kwargs):
+        self.logger = getLogger('processor.OcropyResegment')
         self.ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
@@ -57,6 +58,10 @@ class OcropyResegment(Processor):
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-resegment'
+
+    def setup(self):
+        assert_file_grp_cardinality(self.input_file_grp, 1)
+        assert_file_grp_cardinality(self.output_file_grp, 1)
 
     def process(self):
         """Resegment lines of the workspace.

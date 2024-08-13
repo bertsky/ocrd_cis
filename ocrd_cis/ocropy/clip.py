@@ -34,6 +34,7 @@ from .common import (
 class OcropyClip(Processor):
 
     def __init__(self, *args, **kwargs):
+        self.logger = getLogger('processor.OcropyClip')
         self.ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
@@ -42,6 +43,10 @@ class OcropyClip(Processor):
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-clip'
+
+    def setup(self):
+        assert_file_grp_cardinality(self.input_file_grp, 1)
+        assert_file_grp_cardinality(self.output_file_grp, 1)
 
     def process(self):
         """Clip text regions / lines of the workspace at intersections with neighbours.
