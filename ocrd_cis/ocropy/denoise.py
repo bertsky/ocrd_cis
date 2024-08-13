@@ -57,13 +57,12 @@ class OcropyDenoise(Processor):
 
         Produce a new output file by serialising the resulting hierarchy.
         """
-        LOG = getLogger('processor.OcropyDenoise')
         level = self.parameter['level-of-operation']
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
 
         for (n, input_file) in enumerate(self.input_files):
-            LOG.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
+            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
             file_id = make_file_id(input_file, self.output_file_grp)
 
             pcgts = page_from_file(self.workspace.download_file(input_file))
@@ -80,7 +79,7 @@ class OcropyDenoise(Processor):
                 dpi = page_image_info.resolution
                 if page_image_info.resolutionUnit == 'cm':
                     dpi *= 2.54
-                LOG.info('Page "%s" uses %f DPI', page_id, dpi)
+                self.logger.info('Page "%s" uses %f DPI', page_id, dpi)
                 zoom = 300.0/dpi
             else:
                 zoom = 1
@@ -91,7 +90,7 @@ class OcropyDenoise(Processor):
             else:
                 regions = page.get_AllRegions(classes=['Text'], order='reading-order')
                 if not regions:
-                    LOG.warning('Page "%s" contains no text regions', page_id)
+                    self.logger.warning('Page "%s" contains no text regions', page_id)
                 for region in regions:
                     region_image, region_xywh = self.workspace.image_from_segment(
                         region, page_image, page_xywh,
@@ -102,7 +101,7 @@ class OcropyDenoise(Processor):
                         continue
                     lines = region.get_TextLine()
                     if not lines:
-                        LOG.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
+                        self.logger.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
                     for line in lines:
                         line_image, line_xywh = self.workspace.image_from_segment(
                             line, region_image, region_xywh,
@@ -121,15 +120,14 @@ class OcropyDenoise(Processor):
                 local_filename=file_path,
                 mimetype=MIMETYPE_PAGE,
                 content=to_xml(pcgts))
-            LOG.info('created file ID: %s, file_grp: %s, path: %s',
+            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
                      file_id, self.output_file_grp, out.local_filename)
 
     def process_segment(self, segment, segment_image, segment_xywh, zoom, page_id, file_id):
-        LOG = getLogger('processor.OcropyDenoise')
         if not segment_image.width or not segment_image.height:
-            LOG.warning("Skipping '%s' with zero size", file_id)
+            self.logger.warning("Skipping '%s' with zero size", file_id)
             return
-        LOG.info("About to despeckle '%s'", file_id)
+        self.logger.info("About to despeckle '%s'", file_id)
         bin_image = remove_noise(segment_image,
                                  maxsize=self.parameter['noise_maxsize']/zoom*300/72) # in pt
         # update METS (add the image file):

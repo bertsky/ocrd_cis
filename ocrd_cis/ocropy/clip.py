@@ -83,13 +83,12 @@ class OcropyClip(Processor):
         # too. However, region-level clipping _must_ be run before region-level
         # deskewing, because that would make segments incomensurable with their
         # neighbours.
-        LOG = getLogger('processor.OcropyClip')
         level = self.parameter['level-of-operation']
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
 
         for (n, input_file) in enumerate(self.input_files):
-            LOG.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
+            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
             file_id = make_file_id(input_file, self.output_file_grp)
 
             pcgts = page_from_file(self.workspace.download_file(input_file))
@@ -105,7 +104,7 @@ class OcropyClip(Processor):
                 dpi = page_image_info.resolution
                 if page_image_info.resolutionUnit == 'cm':
                     dpi *= 2.54
-                LOG.info('Page "%s" uses %f DPI', page_id, dpi)
+                self.logger.info('Page "%s" uses %f DPI', page_id, dpi)
                 zoom = 300.0/dpi
             else:
                 zoom = 1
@@ -127,7 +126,7 @@ class OcropyClip(Processor):
                 page.get_TableRegion() +
                 page.get_UnknownRegion())
             if not num_texts:
-                LOG.warning('Page "%s" contains no text regions', page_id)
+                self.logger.warning('Page "%s" contains no text regions', page_id)
             background = ImageStat.Stat(page_image)
             # workaround for Pillow#4925
             if len(background.bands) > 1:
@@ -158,7 +157,7 @@ class OcropyClip(Processor):
                 if level == 'region':
                     if region.get_AlternativeImage():
                         # FIXME: This should probably be an exception (bad workflow configuration).
-                        LOG.warning('Page "%s" region "%s" already contains image data: skipping',
+                        self.logger.warning('Page "%s" region "%s" already contains image data: skipping',
                                     page_id, region.id)
                         continue
                     shape = prep(shapes[i])
@@ -176,7 +175,7 @@ class OcropyClip(Processor):
                 # level == 'line':
                 lines = region.get_TextLine()
                 if not lines:
-                    LOG.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
+                    self.logger.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
                     continue
                 region_image, region_coords = self.workspace.image_from_segment(
                     region, page_image, page_coords, feature_selector='binarized')
@@ -194,7 +193,7 @@ class OcropyClip(Processor):
                 for j, line in enumerate(lines):
                     if line.get_AlternativeImage():
                         # FIXME: This should probably be an exception (bad workflow configuration).
-                        LOG.warning('Page "%s" region "%s" line "%s" already contains image data: skipping',
+                        self.logger.warning('Page "%s" region "%s" line "%s" already contains image data: skipping',
                                     page_id, region.id, line.id)
                         continue
                     shape = prep(shapes[j])
@@ -219,13 +218,12 @@ class OcropyClip(Processor):
                 local_filename=file_path,
                 mimetype=MIMETYPE_PAGE,
                 content=to_xml(pcgts))
-            LOG.info('created file ID: %s, file_grp: %s, path: %s',
+            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
                      file_id, self.output_file_grp, out.local_filename)
 
     def process_segment(self, segment, segment_mask, segment_polygon, neighbours,
                         background_image, parent_image, parent_coords, parent_bin,
                         page_id, file_id):
-        LOG = getLogger('processor.OcropyClip')
         # initialize AlternativeImage@comments classes from parent, except
         # for those operations that can apply on multiple hierarchy levels:
         features = ','.join(
@@ -237,7 +235,7 @@ class OcropyClip(Processor):
         segment_bbox = bbox_from_polygon(segment_polygon)
         for neighbour, neighbour_mask in neighbours:
             if not np.any(segment_mask > neighbour_mask):
-                LOG.info('Ignoring enclosing neighbour "%s" of segment "%s" on page "%s"',
+                self.logger.info('Ignoring enclosing neighbour "%s" of segment "%s" on page "%s"',
                          neighbour.id, segment.id, page_id)
                 continue
             # find connected components that (only) belong to the neighbour:
@@ -247,7 +245,7 @@ class OcropyClip(Processor):
             num_foreground = np.count_nonzero(segment_mask * parent_bin)
             if not num_intruders:
                 continue
-            LOG.debug('segment "%s" vs neighbour "%s": suppressing %d of %d pixels on page "%s"',
+            self.logger.debug('segment "%s" vs neighbour "%s": suppressing %d of %d pixels on page "%s"',
                       segment.id, neighbour.id, num_intruders, num_foreground, page_id)
             # suppress in segment_mask so these intruders can stay in the neighbours
             # (are not removed from both sides)

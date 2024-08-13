@@ -65,13 +65,12 @@ class OcropyDeskew(Processor):
 
         Produce a new output file by serialising the resulting hierarchy.
         """
-        LOG = getLogger('processor.OcropyDeskew')
         level = self.parameter['level-of-operation']
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
 
         for (n, input_file) in enumerate(self.input_files):
-            LOG.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
+            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
             file_id = make_file_id(input_file, self.output_file_grp)
 
             pcgts = page_from_file(self.workspace.download_file(input_file))
@@ -95,7 +94,7 @@ class OcropyDeskew(Processor):
                 else: # region
                     regions = page.get_AllRegions(classes=['Text'], order='reading-order')
                 if not regions:
-                    LOG.warning('Page "%s" contains no text regions', page_id)
+                    self.logger.warning('Page "%s" contains no text regions', page_id)
                 for region in regions:
                     # process region:
                     region_image, region_coords = self.workspace.image_from_segment(
@@ -118,23 +117,22 @@ class OcropyDeskew(Processor):
                 local_filename=file_path,
                 mimetype=MIMETYPE_PAGE,
                 content=to_xml(pcgts))
-            LOG.info('created file ID: %s, file_grp: %s, path: %s',
+            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
                      file_id, self.output_file_grp, out.local_filename)
 
     def _process_segment(self, segment, segment_image, segment_coords, segment_id, page_id, file_id):
-        LOG = getLogger('processor.OcropyDeskew')
         if not segment_image.width or not segment_image.height:
-            LOG.warning("Skipping %s with zero size", segment_id)
+            self.logger.warning("Skipping %s with zero size", segment_id)
             return
         angle0 = segment_coords['angle'] # deskewing (w.r.t. top image) already applied to segment_image
-        LOG.info("About to deskew %s", segment_id)
+        self.logger.info("About to deskew %s", segment_id)
         angle = deskew(segment_image, maxskew=self.parameter['maxskew']) # additional angle to be applied
         # segment angle: PAGE orientation is defined clockwise,
         # whereas PIL/ndimage rotation is in mathematical direction:
         orientation = -(angle + angle0)
         orientation = 180 - (180 - orientation) % 360 # map to [-179.999,180]
         segment.set_orientation(orientation) # also removes all deskewed AlternativeImages
-        LOG.info("Found angle for %s: %.1f", segment_id, angle)
+        self.logger.info("Found angle for %s: %.1f", segment_id, angle)
         # delegate reflection, rotation and re-cropping to core:
         if isinstance(segment, PageType):
             segment_image, segment_coords, _ = self.workspace.image_from_page(
