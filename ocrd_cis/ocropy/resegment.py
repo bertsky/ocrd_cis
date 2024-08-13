@@ -1,16 +1,13 @@
 from __future__ import absolute_import
 from logging import Logger
-import os.path
+from os.path import join
 import numpy as np
 from skimage import draw, segmentation
 from shapely.geometry import Polygon, LineString
 from shapely.prepared import prep
-from shapely.ops import unary_union
 
 from ocrd_modelfactory import page_from_file
-from ocrd_models.ocrd_page import (
-    to_xml, PageType, BaselineType
-)
+from ocrd_models.ocrd_page import BaselineType, PageType, to_xml
 from ocrd import Processor
 from ocrd_utils import (
     getLogger,
@@ -169,7 +166,7 @@ class OcropyResegment(Processor):
                         self.logger.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
 
             # update METS (add the PAGE file):
-            file_path = os.path.join(self.output_file_grp, file_id + '.xml')
+            file_path = join(self.output_file_grp, file_id + '.xml')
             pcgts.set_pcGtsId(file_id)
             out = self.workspace.add_file(
                 ID=file_id,

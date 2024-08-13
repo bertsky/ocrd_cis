@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from logging import Logger
-import sys
-import os.path
+from sys import exit
+from os.path import abspath, dirname, isfile, join
 import numpy as np
 from PIL import Image
 
@@ -24,11 +24,9 @@ from ocrd_models.ocrd_page import (
 from ocrd import Processor
 
 from .. import get_ocrd_tool
+from .common import check_line, pil2array
 from .ocrolib import lstm, load_object, midrange
-from .common import (
-    pil2array,
-    check_line
-)
+
 
 def resize_keep_ratio(image, baseheight=48):
     scale = baseheight / image.height
@@ -112,20 +110,20 @@ class OcropyRecognize(Processor):
         be resolved with OcrdResourceManager to a valid readeable file and
         returns it.  If not, it checks if the model can be found in the
         dirname(__file__)/models/ directory."""
-        canread = lambda p: os.path.isfile(p) and os.access(p, os.R_OK)
+        canread = lambda p: isfile(p) and os.access(p, os.R_OK)
         try:
             model = self.resolve_resource(self.parameter['model'])
             if canread(model):
                 return model
         except SystemExit:
-            ocropydir = os.path.dirname(os.path.abspath(__file__))
-            path = os.path.join(ocropydir, 'models', self.parameter['model'])
+            ocropydir = dirname(abspath(__file__))
+            path = join(ocropydir, 'models', self.parameter['model'])
             self.logger.info("Failed to resolve model with OCR-D/core mechanism, trying %s", path)
             if canread(path):
                 return path
         self.logger.error("Could not find model %s. Try 'ocrd resmgr download ocrd-cis-ocropy-recognize %s",
                 self.parameter['model'], self.parameter['model'])
-        sys.exit(1)
+        exit(1)
 
     def process(self):
         """Recognize lines / words / glyphs of the workspace.
@@ -176,7 +174,7 @@ class OcropyRecognize(Processor):
 
             # update METS (add the PAGE file):
             file_id = make_file_id(input_file, self.output_file_grp)
-            file_path = os.path.join(self.output_file_grp, file_id + '.xml')
+            file_path = join(self.output_file_grp, file_id + '.xml')
             pcgts.set_pcGtsId(file_id)
             out = self.workspace.add_file(
                 ID=file_id,

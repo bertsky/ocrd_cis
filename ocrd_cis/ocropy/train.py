@@ -1,7 +1,8 @@
 from __future__ import absolute_import
 from logging import Logger
-import sys
-import os
+from sys import exit
+from os import getcwd, makedirs, remove
+from os.path import abspath, dirname, exists, join, isfile
 import tempfile
 
 from ocrd_modelfactory import page_from_file
@@ -15,10 +16,10 @@ from .binarize import binarize
 
 def deletefiles(filelist):
     for file in filelist:
-        if os.path.exists(file):
-            os.remove(file)
-        if os.path.exists(file[:-3]+'gt.txt'):
-            os.remove(file[:-3]+'gt.txt')
+        if exists(file):
+            remove(file)
+        if exists(file[:-3]+'gt.txt'):
+            remove(file[:-3]+'gt.txt')
 
 def resize_keep_ratio(image, baseheight=48):
     hpercent = (baseheight / float(image.size[1]))
@@ -31,7 +32,7 @@ class OcropyTrain(Processor):
     logger: Logger
 
     def __init__(self, *args, **kwargs):
-        self.oldcwd = os.getcwd()
+        self.oldcwd = getcwd()
         ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = ocrd_tool['tools'][self.executable]
         kwargs['version'] = ocrd_tool['version']
@@ -52,22 +53,22 @@ class OcropyTrain(Processor):
             try:
                 modelpath = self.resolve_resource(model)
             except SystemExit:
-                ocropydir = os.path.dirname(os.path.abspath(__file__))
-                modelpath = os.path.join(ocropydir, 'models', model)
+                ocropydir = dirname(abspath(__file__))
+                modelpath = join(ocropydir, 'models', model)
                 self.logger.info("Failed to resolve model '%s' path, trying '%s'", model, modelpath)
-            if not os.path.isfile(modelpath):
+            if not isfile(modelpath):
                 self.logger.error("Could not find model '%s'. Try 'ocrd resmgr download ocrd-cis-ocropy-recognize %s'",
                                model, model)
-                sys.exit(1)
-            outputpath = os.path.join(self.oldcwd, 'output', model)
+                exit(1)
+            outputpath = join(self.oldcwd, 'output', model)
             if 'outputpath' in self.parameter:
-                outputpath = os.path.join(self.parameter, model)
+                outputpath = join(self.parameter, model)
         else:
             modelpath = None
-            outputpath = os.path.join(self.oldcwd, 'output', 'lstm')
+            outputpath = join(self.oldcwd, 'output', 'lstm')
             if 'outputpath' in self.parameter:
-                outputpath = os.path.join(self.parameter, 'lstm')
-        os.makedirs(os.path.dirname(outputpath))
+                outputpath = join(self.parameter, 'lstm')
+        makedirs(dirname(outputpath))
         self.modelpath = modelpath
         self.outputpath = outputpath
 
@@ -92,20 +93,20 @@ class OcropyTrain(Processor):
                 self.logger.info("Extracting %i lines from region '%s'", len(textlines), region.id)
                 for line in textlines:
                     if self.parameter['textequiv_level'] == 'line':
-                        path = os.path.join(filepath, page_id + region.id + line.id)
+                        path = join(filepath, page_id + region.id + line.id)
                         imgpath = self.extract_segment(path, line, page_image, page_coords)
                         if imgpath:
                             filelist.append(imgpath)
                         continue
                     for word in line.get_Word():
                         if self.parameter['textequiv_level'] == 'word':
-                            path = os.path.join(filepath, page_id + region.id + line.id + word.id)
+                            path = join(filepath, page_id + region.id + line.id + word.id)
                             imgpath = self.extract_segment(path, word, page_image, page_coords)
                             if imgpath:
                                 filelist.append(imgpath)
                             continue
                         for glyph in word.get_Glyph():
-                            path = os.path.join(filepath, page_id + region.id + line.id + glyph.id)
+                            path = join(filepath, page_id + region.id + line.id + glyph.id)
                             imgpath = self.extract_segment(path, glyph, page_image, page_coords)
                             if imgpath:
                                 filelist.append(imgpath)

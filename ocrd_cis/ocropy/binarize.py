@@ -1,12 +1,12 @@
 from __future__ import absolute_import
 from logging import Logger
 
-import os.path
-import PIL
 import cv2
 import numpy as np
 from PIL import Image
-from os.path import join
+from os.path import abspath, dirname, join
+
+from typing import Tuple
 
 #import kraken.binarization
 
@@ -16,18 +16,13 @@ from ocrd_utils import (
     assert_file_grp_cardinality,
     MIMETYPE_PAGE
 )
-from ocrd_modelfactory import page_from_file
-from ocrd_models.ocrd_page import (
-    OcrdPage, to_xml, AlternativeImageType
-)
+from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage, to_xml
 from ocrd import Processor
 
 from . import common
-from .common import (
-    # binarize,
-     array2pil, determine_zoom, pil2array, remove_noise)
+from .common import array2pil, determine_zoom, pil2array, remove_noise
 
-#sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+#sys.path.append(dirname(abspath(__file__)))
 
 def binarize(pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zoom=1.0):
     LOG = getLogger('processor.OcropyBinarize')
@@ -149,7 +144,7 @@ class OcropyBinarize(Processor):
 
         return ret
 
-    def process_page(self, page, page_image, page_xywh, zoom, page_id, file_id) -> tuple[Image.Image, str, str]:
+    def process_page(self, page, page_image, page_xywh, zoom, page_id, file_id) -> Tuple[Image.Image, str, str]:
         if not page_image.width or not page_image.height:
             raise ValueError("Skipping page '%s' with zero size", page_id)
         self.logger.info("About to binarize page '%s'", page_id)

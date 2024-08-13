@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 from logging import Logger
-import os.path
+from os.path import join
 import numpy as np
 
 from ocrd_utils import (
@@ -172,7 +172,7 @@ class OcropyDewarp(Processor):
                         comments=line_xywh['features'] + ',dewarped'))
 
             # update METS (add the PAGE file):
-            file_path = os.path.join(self.output_file_grp, file_id + '.xml')
+            file_path = join(self.output_file_grp, file_id + '.xml')
             pcgts.set_pcGtsId(file_id)
             out = self.workspace.add_file(
                 ID=file_id,
