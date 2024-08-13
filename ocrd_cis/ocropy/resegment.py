@@ -46,15 +46,17 @@ from .segment import (
     diff_polygons
 )
 
-TOOL = 'ocrd-cis-ocropy-resegment'
-
 class OcropyResegment(Processor):
 
     def __init__(self, *args, **kwargs):
         self.ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][TOOL]
+        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
         super().__init__(*args, **kwargs)
+
+    @property
+    def executable(self):
+        return 'ocrd-cis-ocropy-resegment'
 
     def process(self):
         """Resegment lines of the workspace.

@@ -24,8 +24,6 @@ from .common import (
 
 #sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-TOOL = 'ocrd-cis-ocropy-dewarp'
-
 class InvalidLine(Exception):
     """Line image does not allow dewarping and should be ignored."""
 
@@ -72,13 +70,17 @@ class OcropyDewarp(Processor):
 
     def __init__(self, *args, **kwargs):
         self.ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][TOOL]
+        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
         super(OcropyDewarp, self).__init__(*args, **kwargs)
         if hasattr(self, 'output_file_grp'):
             # processing context
             self.setup()
-    
+
+    @property
+    def executable(self):
+        return 'ocrd-cis-ocropy-dewarp'
+
     def setup(self):
         # defaults from ocrolib.lineest:
         self.lnorm = lineest.CenterNormalizer(

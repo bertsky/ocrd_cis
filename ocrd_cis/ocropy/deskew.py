@@ -34,9 +34,13 @@ class OcropyDeskew(Processor):
 
     def __init__(self, *args, **kwargs):
         ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = ocrd_tool['tools'][TOOL]
+        kwargs['ocrd_tool'] = ocrd_tool['tools'][self.executable]
         kwargs['version'] = ocrd_tool['version']
         super(OcropyDeskew, self).__init__(*args, **kwargs)
+
+    @property
+    def executable(self):
+        return 'ocrd-cis-ocropy-deskew'
 
     def process(self):
         """Deskew the pages or regions of the workspace.

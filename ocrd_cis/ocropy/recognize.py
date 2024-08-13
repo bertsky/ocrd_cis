@@ -30,8 +30,6 @@ from .common import (
     check_line
 )
 
-TOOL = 'ocrd-cis-ocropy-recognize'
-
 def resize_keep_ratio(image, baseheight=48):
     scale = baseheight / image.height
     wsize = round(image.width * scale)
@@ -85,13 +83,17 @@ class OcropyRecognize(Processor):
         self.ocrd_tool = get_ocrd_tool()
         self.pad = 16 # ocropus-rpred default
         self.network = None # set in process
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][TOOL]
+        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
         super(OcropyRecognize, self).__init__(*args, **kwargs)
         if hasattr(self, 'output_file_grp'):
             # processing context
             self.setup()
-    
+
+    @property
+    def executable(self):
+        return 'ocrd-cis-ocropy-recognize'
+
     def setup(self):
         self.logger = getLogger('processor.OcropyRecognize')
         # from ocropus-rpred:

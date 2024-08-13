@@ -28,8 +28,6 @@ from .common import (
 
 #sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-TOOL = 'ocrd-cis-ocropy-binarize'
-
 def binarize(pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zoom=1.0):
     LOG = getLogger('processor.OcropyBinarize')
     LOG.debug('binarizing %dx%d image with method=%s', pil_image.width, pil_image.height, method)
@@ -71,13 +69,17 @@ class OcropyBinarize(Processor):
 
     def __init__(self, *args, **kwargs):
         self.ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][TOOL]
+        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
         super(OcropyBinarize, self).__init__(*args, **kwargs)
         if hasattr(self, 'output_file_grp'):
             # processing context
             self.setup()
-    
+
+    @property
+    def executable(self):
+        return 'ocrd-cis-ocropy-binarize'
+
     def setup(self):
         self.logger = getLogger('processor.OcropyBinarize')
         if self.parameter['grayscale'] and self.parameter['method'] != 'ocropy':

@@ -19,15 +19,17 @@ from .common import (
     # binarize,
     remove_noise)
 
-TOOL = 'ocrd-cis-ocropy-denoise'
-
 class OcropyDenoise(Processor):
 
     def __init__(self, *args, **kwargs):
         self.ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][TOOL]
+        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
         super(OcropyDenoise, self).__init__(*args, **kwargs)
+
+    @property
+    def executable(self):
+        return 'ocrd-cis-ocropy-denoise'
 
     def process(self):
         """Despeckle the pages / regions / lines of the workspace.

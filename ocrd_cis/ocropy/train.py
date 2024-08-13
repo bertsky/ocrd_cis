@@ -32,12 +32,16 @@ class OcropyTrain(Processor):
     def __init__(self, *args, **kwargs):
         self.oldcwd = os.getcwd()
         ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = ocrd_tool['tools']['ocrd-cis-ocropy-train']
+        kwargs['ocrd_tool'] = ocrd_tool['tools'][self.executable]
         kwargs['version'] = ocrd_tool['version']
         super(OcropyTrain, self).__init__(*args, **kwargs)
         if hasattr(self, 'input_file_grp'):
             # processing context
             self.setup()
+
+    @property
+    def executable(self):
+        return 'ocrd-cis-ocropy-train'
 
     def setup(self):
         self.log = getLogger('processor.OcropyTrain')

@@ -58,8 +58,6 @@ from .common import (
     lines2regions
 )
 
-TOOL = 'ocrd-cis-ocropy-segment'
-
 def masks2polygons(bg_labels, baselines, fg_bin, name, min_area=None, simplify=None, open_holes=False, reorder=True):
     """Convert label masks into polygon coordinates.
 
@@ -248,9 +246,13 @@ class OcropySegment(Processor):
 
     def __init__(self, *args, **kwargs):
         self.ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][TOOL]
+        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
         super(OcropySegment, self).__init__(*args, **kwargs)
+
+    @property
+    def executable(self):
+        return 'ocrd-cis-ocropy-segment'
 
     def process(self):
         """Segment pages into regions+lines, tables into cells+lines, or regions into lines.
