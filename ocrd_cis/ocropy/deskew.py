@@ -17,13 +17,9 @@ from ocrd import Processor
 
 from .. import get_ocrd_tool
 from . import common
-from .common import (
-    pil2array
-)
+from .common import pil2array
 
 #sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-TOOL = 'ocrd-cis-ocropy-deskew'
 
 def deskew(pil_image, maxskew=2):
     array = pil2array(pil_image)

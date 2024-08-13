@@ -17,10 +17,7 @@ from ocrd_utils import MIMETYPE_PAGE
 
 from .. import get_ocrd_tool
 from .ocrolib import lineest
-from .common import (
-    pil2array, array2pil,
-    check_line,
-)
+from .common import array2pil, check_line, determine_zoom, pil2array
 
 #sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -128,16 +125,9 @@ class OcropyDewarp(Processor):
                 
             page_image, page_xywh, page_image_info = self.workspace.image_from_page(
                 page, page_id)
-            if self.parameter['dpi'] > 0:
-                zoom = 300.0/self.parameter['dpi']
-            elif page_image_info.resolution != 1:
-                dpi = page_image_info.resolution
-                if page_image_info.resolutionUnit == 'cm':
-                    dpi *= 2.54
-                self.logger.info('Page "%s" uses %f DPI', page_id, dpi)
-                zoom = 300.0/dpi
-            else:
-                zoom = 1
+
+            zoom = determine_zoom(self.parameter['dpi'], page_image_info)
+            self.logger.info(f"Page '{page_id}' uses {self.parameter['dpi']} DPI")
 
             regions = page.get_AllRegions(classes=['Text'], order='reading-order')
             if not regions:

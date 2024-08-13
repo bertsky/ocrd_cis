@@ -28,8 +28,7 @@ from .. import get_ocrd_tool
 from .ocrolib import midrange, morph
 from .common import (
     # binarize,
-    pil2array, array2pil
-)
+    array2pil, determine_zoom, pil2array)
 
 class OcropyClip(Processor):
 
@@ -98,16 +97,8 @@ class OcropyClip(Processor):
             
             page_image, page_coords, page_image_info = self.workspace.image_from_page(
                 page, page_id, feature_selector='binarized')
-            if self.parameter['dpi'] > 0:
-                zoom = 300.0/self.parameter['dpi']
-            elif page_image_info.resolution != 1:
-                dpi = page_image_info.resolution
-                if page_image_info.resolutionUnit == 'cm':
-                    dpi *= 2.54
-                self.logger.info('Page "%s" uses %f DPI', page_id, dpi)
-                zoom = 300.0/dpi
-            else:
-                zoom = 1
+            zoom = determine_zoom(self.parameter['dpi'], page_image_info)
+            self.logger.info(f"Page '{page_id}' uses {self.parameter['dpi']} DPI")
 
             # FIXME: what about text regions inside table regions?
             regions = list(page.get_TextRegion())

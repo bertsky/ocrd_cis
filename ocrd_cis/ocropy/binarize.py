@@ -7,7 +7,6 @@ import cv2
 import numpy as np
 from PIL import Image
 from os.path import join
-from ocrd_models import OcrdExif
 
 #import kraken.binarization
 
@@ -25,9 +24,8 @@ from ocrd import Processor
 
 from . import common
 from .common import (
-    pil2array, array2pil,
     # binarize,
-    remove_noise)
+     array2pil, determine_zoom, pil2array, remove_noise)
 
 #sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -66,18 +64,6 @@ def binarize(pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zo
         else:
             raise Exception('unknown binarization method %s' % method)
         return Image.fromarray(th), 0
-
-def determine_zoom(dpi: float, page_image_info: OcrdExif) -> float:
-    if dpi > 0:
-        zoom = 300.0/dpi
-    elif page_image_info.resolution != 1:
-        dpi = page_image_info.resolution
-        if page_image_info.resolutionUnit == 'cm':
-            dpi *= 2.54
-        zoom = 300.0/dpi
-    else:
-        zoom = 1
-    return zoom
 
 class OcropyBinarize(Processor):
     logger : logging.Logger
@@ -126,7 +112,7 @@ class OcropyBinarize(Processor):
 
         page_image, page_xywh, page_image_info = self.workspace.image_from_page(page, page_id, feature_filter='binarized')
         zoom = determine_zoom(self.parameter['dpi'], page_image_info)
-        self.logger.info('Page "%s" uses %f DPI', page_id, self.parameter['dpi'])
+        self.logger.info(f"Page '{page_id}' uses {self.parameter['dpi']} DPI")
         
         ret = [pcgts]
         if level == 'page':

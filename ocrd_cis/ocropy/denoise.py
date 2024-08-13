@@ -17,7 +17,7 @@ from ocrd import Processor
 from .. import get_ocrd_tool
 from .common import (
     # binarize,
-    remove_noise)
+    determine_zoom, remove_noise)
 
 class OcropyDenoise(Processor):
 
@@ -73,16 +73,9 @@ class OcropyDenoise(Processor):
             page_image, page_xywh, page_image_info = self.workspace.image_from_page(
                 page, page_id,
                 feature_selector='binarized' if level == 'page' else '')
-            if self.parameter['dpi'] > 0:
-                zoom = 300.0/self.parameter['dpi']
-            elif page_image_info.resolution != 1:
-                dpi = page_image_info.resolution
-                if page_image_info.resolutionUnit == 'cm':
-                    dpi *= 2.54
-                self.logger.info('Page "%s" uses %f DPI', page_id, dpi)
-                zoom = 300.0/dpi
-            else:
-                zoom = 1
+
+            zoom = determine_zoom(self.parameter['dpi'], page_image_info)
+            self.logger.info(f"Page '{page_id}' uses {self.parameter['dpi']} DPI")
 
             if level == 'page':
                 self.process_segment(page, page_image, page_xywh, zoom,
