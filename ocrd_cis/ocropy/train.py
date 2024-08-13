@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-
+from logging import Logger
 import sys
 import os
 import tempfile
@@ -28,9 +28,9 @@ def resize_keep_ratio(image, baseheight=48):
 
 
 class OcropyTrain(Processor):
+    log: Logger
 
     def __init__(self, *args, **kwargs):
-        self.log = getLogger('processor.OcropyTrain')
         self.oldcwd = os.getcwd()
         ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = ocrd_tool['tools'][self.executable]
@@ -45,6 +45,7 @@ class OcropyTrain(Processor):
         return 'ocrd-cis-ocropy-train'
 
     def setup(self):
+        self.log = getLogger('processor.OcropyTrain')
         #print(self.parameter)
         if 'model' in self.parameter:
             model = self.parameter['model']

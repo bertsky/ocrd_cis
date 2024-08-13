@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-
+from logging import Logger
 import os.path
 import itertools
 import numpy as np
@@ -245,9 +245,10 @@ def masks2polygons(bg_labels, baselines, fg_bin, name, min_area=None, simplify=N
 
 
 class OcropySegment(Processor):
+    logger: Logger
 
     def __init__(self, *args, **kwargs):
-        self.logger = getLogger('processor.OcropySegment')
+
         self.ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
@@ -258,6 +259,7 @@ class OcropySegment(Processor):
         return 'ocrd-cis-ocropy-segment'
 
     def setup(self):
+        self.logger = getLogger('processor.OcropySegment')
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
 

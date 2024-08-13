@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-
+from logging import Logger
 import os.path
 
 from ocrd_utils import (
@@ -27,9 +27,9 @@ def deskew(pil_image, maxskew=2):
     return angle
 
 class OcropyDeskew(Processor):
+    logger: Logger
 
     def __init__(self, *args, **kwargs):
-        self.logger = getLogger('processor.OcropyDeskew')
         ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = ocrd_tool['tools'][self.executable]
         kwargs['version'] = ocrd_tool['version']
@@ -40,6 +40,7 @@ class OcropyDeskew(Processor):
         return 'ocrd-cis-ocropy-deskew'
 
     def setup(self):
+        self.logger = getLogger('processor.OcropyDeskew')
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
 

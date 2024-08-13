@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from logging import Logger
 
 import os.path
 import numpy as np
@@ -31,9 +32,9 @@ from .common import (
     array2pil, determine_zoom, pil2array)
 
 class OcropyClip(Processor):
+    logger: Logger
 
     def __init__(self, *args, **kwargs):
-        self.logger = getLogger('processor.OcropyClip')
         self.ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
@@ -44,6 +45,7 @@ class OcropyClip(Processor):
         return 'ocrd-cis-ocropy-clip'
 
     def setup(self):
+        self.logger = getLogger('processor.OcropyClip')
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
 

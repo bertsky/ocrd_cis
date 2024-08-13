@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-import logging
+from logging import Logger
 
 import os.path
 import PIL
@@ -66,16 +66,16 @@ def binarize(pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zo
         return Image.fromarray(th), 0
 
 class OcropyBinarize(Processor):
-    logger : logging.Logger
+    logger: Logger
 
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-binarize'
 
     def setup(self):
+        self.logger = getLogger('processor.OcropyBinarize')
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
-        self.logger = getLogger('processor.OcropyBinarize')
         method = self.parameter['method']
         if self.parameter['grayscale'] and method != 'ocropy':
             self.logger.critical(f'Requested method {method} does not support grayscale normalized output')

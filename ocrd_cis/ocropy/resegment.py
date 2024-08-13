@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-
+from logging import Logger
 import os.path
 import numpy as np
 from skimage import draw, segmentation
@@ -48,9 +48,9 @@ from .segment import (
 )
 
 class OcropyResegment(Processor):
+    logger: Logger
 
     def __init__(self, *args, **kwargs):
-        self.logger = getLogger('processor.OcropyResegment')
         self.ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
@@ -61,6 +61,7 @@ class OcropyResegment(Processor):
         return 'ocrd-cis-ocropy-resegment'
 
     def setup(self):
+        self.logger = getLogger('processor.OcropyResegment')
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
 

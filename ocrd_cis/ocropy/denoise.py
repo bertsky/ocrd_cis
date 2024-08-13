@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-
+from logging import Logger
 import os.path
 
 from ocrd_utils import (
@@ -20,9 +20,9 @@ from .common import (
     determine_zoom, remove_noise)
 
 class OcropyDenoise(Processor):
+    logger: Logger
 
     def __init__(self, *args, **kwargs):
-        self.logger = getLogger('processor.OcropyDenoise')
         self.ocrd_tool = get_ocrd_tool()
         kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
         kwargs['version'] = self.ocrd_tool['version']
@@ -33,6 +33,7 @@ class OcropyDenoise(Processor):
         return 'ocrd-cis-ocropy-denoise'
 
     def setup(self):
+        self.logger = getLogger('processor.OcropyDenoise')
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
 
