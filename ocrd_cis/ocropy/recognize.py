@@ -150,8 +150,6 @@ class OcropyRecognize(Processor):
 
         Produce a new output file by serialising the resulting hierarchy.
         """
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
         maxlevel = self.parameter['textequiv_level']
 
         # self.logger.info("Using model %s in %s for recognition", model)

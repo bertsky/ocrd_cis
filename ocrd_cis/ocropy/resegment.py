@@ -114,8 +114,6 @@ class OcropyResegment(Processor):
         # accuracy crucially depends on a good estimate of the images'
         # pixel density (at least if source input is not 300 DPI).
         level = self.parameter['level-of-operation']
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
 
         for n, input_file in enumerate(self.input_files):
             self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)

@@ -338,9 +338,6 @@ class OcropySegment(Processor):
         overwrite_order = self.parameter['overwrite_order']
         oplevel = self.parameter['level-of-operation']
 
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
-
         for (n, input_file) in enumerate(self.input_files):
             self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
             file_id = make_file_id(input_file, self.output_file_grp)
