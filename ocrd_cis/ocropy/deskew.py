@@ -5,7 +5,6 @@ from os.path import join
 from ocrd_utils import (
     getLogger,
     make_file_id,
-    assert_file_grp_cardinality,
     MIMETYPE_PAGE
 )
 from ocrd_modelfactory import page_from_file
@@ -34,8 +33,6 @@ class OcropyDeskew(Processor):
 
     def setup(self):
         self.logger = getLogger('processor.OcropyDeskew')
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
 
     def process(self):
         """Deskew the pages or regions of the workspace.

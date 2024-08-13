@@ -13,7 +13,6 @@ from typing import Tuple
 from ocrd_utils import (
     getLogger,
     make_file_id,
-    assert_file_grp_cardinality,
     MIMETYPE_PAGE
 )
 from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage, to_xml
@@ -69,8 +68,6 @@ class OcropyBinarize(Processor):
 
     def setup(self):
         self.logger = getLogger('processor.OcropyBinarize')
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
         method = self.parameter['method']
         if self.parameter['grayscale'] and method != 'ocropy':
             self.logger.critical(f'Requested method {method} does not support grayscale normalized output')

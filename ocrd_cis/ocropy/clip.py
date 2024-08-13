@@ -15,7 +15,6 @@ from ocrd import Processor
 from ocrd_utils import (
     getLogger,
     make_file_id,
-    assert_file_grp_cardinality,
     coordinates_of_segment,
     polygon_from_points,
     bbox_from_polygon,
@@ -39,8 +38,6 @@ class OcropyClip(Processor):
 
     def setup(self):
         self.logger = getLogger('processor.OcropyClip')
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
 
     def process(self):
         """Clip text regions / lines of the workspace at intersections with neighbours.

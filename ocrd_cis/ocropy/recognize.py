@@ -12,7 +12,6 @@ from rapidfuzz.distance import Levenshtein
 from ocrd_utils import (
     getLogger,
     make_file_id,
-    assert_file_grp_cardinality,
     coordinates_for_segment,
     polygon_from_bbox,
     points_from_polygon,
@@ -88,8 +87,6 @@ class OcropyRecognize(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropyRecognize')
         self.pad = 16
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
         # from ocropus-rpred:
         self.network = load_object(self.get_model(), verbose=1)
         for x in self.network.walk():

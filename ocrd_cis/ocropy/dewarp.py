@@ -6,7 +6,6 @@ import numpy as np
 from ocrd_utils import (
     getLogger,
     make_file_id,
-    assert_file_grp_cardinality,
 )
 from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import (
@@ -71,8 +70,6 @@ class OcropyDewarp(Processor):
 
     def setup(self):
         self.logger = getLogger('processor.OcropyDewarp')
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
         # defaults from ocrolib.lineest:
         self.lnorm = lineest.CenterNormalizer(
             params=(self.parameter['range'],

@@ -38,7 +38,6 @@ from ocrd import Processor
 from ocrd_utils import (
     getLogger,
     make_file_id,
-    assert_file_grp_cardinality,
     coordinates_of_segment,
     coordinates_for_segment,
     points_from_polygon,
@@ -252,8 +251,6 @@ class OcropySegment(Processor):
 
     def setup(self):
         self.logger = getLogger('processor.OcropySegment')
-        assert_file_grp_cardinality(self.input_file_grp, 1)
-        assert_file_grp_cardinality(self.output_file_grp, 1)
 
     def process(self):
         """Segment pages into regions+lines, tables into cells+lines, or regions into lines.
