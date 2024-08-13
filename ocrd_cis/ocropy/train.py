@@ -8,7 +8,6 @@ import tempfile
 from ocrd_modelfactory import page_from_file
 from ocrd import Processor
 from ocrd_utils import getLogger
-from ocrd_cis import get_ocrd_tool
 
 from .ocropus_rtrain import *
 from .binarize import binarize
@@ -30,16 +29,7 @@ def resize_keep_ratio(image, baseheight=48):
 
 class OcropyTrain(Processor):
     logger: Logger
-
-    def __init__(self, *args, **kwargs):
-        self.oldcwd = getcwd()
-        ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = ocrd_tool['tools'][self.executable]
-        kwargs['version'] = ocrd_tool['version']
-        super(OcropyTrain, self).__init__(*args, **kwargs)
-        if hasattr(self, 'input_file_grp'):
-            # processing context
-            self.setup()
+    old_cwd: str
 
     @property
     def executable(self):
@@ -47,6 +37,7 @@ class OcropyTrain(Processor):
 
     def setup(self):
         self.logger = getLogger('processor.OcropyTrain')
+        self.old_cwd = getcwd()
         #print(self.parameter)
         if 'model' in self.parameter:
             model = self.parameter['model']
@@ -60,12 +51,12 @@ class OcropyTrain(Processor):
                 self.logger.error("Could not find model '%s'. Try 'ocrd resmgr download ocrd-cis-ocropy-recognize %s'",
                                model, model)
                 exit(1)
-            outputpath = join(self.oldcwd, 'output', model)
+            outputpath = join(self.old_cwd, 'output', model)
             if 'outputpath' in self.parameter:
                 outputpath = join(self.parameter, model)
         else:
             modelpath = None
-            outputpath = join(self.oldcwd, 'output', 'lstm')
+            outputpath = join(self.old_cwd, 'output', 'lstm')
             if 'outputpath' in self.parameter:
                 outputpath = join(self.parameter, 'lstm')
         makedirs(dirname(outputpath))

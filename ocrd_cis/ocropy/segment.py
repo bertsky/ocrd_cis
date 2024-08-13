@@ -46,7 +46,6 @@ from ocrd_utils import (
     MIMETYPE_PAGE
 )
 
-from .. import get_ocrd_tool
 from .ocrolib import midrange
 from .ocrolib import morph
 from .common import (
@@ -246,13 +245,6 @@ def masks2polygons(bg_labels, baselines, fg_bin, name, min_area=None, simplify=N
 
 class OcropySegment(Processor):
     logger: Logger
-
-    def __init__(self, *args, **kwargs):
-
-        self.ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
-        kwargs['version'] = self.ocrd_tool['version']
-        super(OcropySegment, self).__init__(*args, **kwargs)
 
     @property
     def executable(self):

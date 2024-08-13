@@ -15,7 +15,6 @@ from ocrd_models.ocrd_page import (
 )
 from ocrd import Processor
 
-from .. import get_ocrd_tool
 from . import common
 from .common import pil2array
 
@@ -28,12 +27,6 @@ def deskew(pil_image, maxskew=2):
 
 class OcropyDeskew(Processor):
     logger: Logger
-
-    def __init__(self, *args, **kwargs):
-        ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = ocrd_tool['tools'][self.executable]
-        kwargs['version'] = ocrd_tool['version']
-        super(OcropyDeskew, self).__init__(*args, **kwargs)
 
     @property
     def executable(self):

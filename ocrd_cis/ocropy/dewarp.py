@@ -15,7 +15,6 @@ from ocrd_models.ocrd_page import (
 from ocrd import Processor
 from ocrd_utils import MIMETYPE_PAGE
 
-from .. import get_ocrd_tool
 from .ocrolib import lineest
 from .common import array2pil, check_line, determine_zoom, pil2array
 
@@ -65,15 +64,6 @@ def padvert(image, range_):
 
 class OcropyDewarp(Processor):
     logger: Logger
-
-    def __init__(self, *args, **kwargs):
-        self.ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
-        kwargs['version'] = self.ocrd_tool['version']
-        super(OcropyDewarp, self).__init__(*args, **kwargs)
-        if hasattr(self, 'output_file_grp'):
-            # processing context
-            self.setup()
 
     @property
     def executable(self):

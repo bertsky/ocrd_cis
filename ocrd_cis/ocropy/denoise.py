@@ -14,19 +14,12 @@ from ocrd_models.ocrd_page import (
 )
 from ocrd import Processor
 
-from .. import get_ocrd_tool
 from .common import (
     # binarize,
     determine_zoom, remove_noise)
 
 class OcropyDenoise(Processor):
     logger: Logger
-
-    def __init__(self, *args, **kwargs):
-        self.ocrd_tool = get_ocrd_tool()
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
-        kwargs['version'] = self.ocrd_tool['version']
-        super(OcropyDenoise, self).__init__(*args, **kwargs)
 
     @property
     def executable(self):

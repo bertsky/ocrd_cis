@@ -1,6 +1,8 @@
 from __future__ import absolute_import
 from logging import Logger
 from sys import exit
+from typing import Any
+from os import access, R_OK
 from os.path import abspath, dirname, isfile, join
 import numpy as np
 from PIL import Image
@@ -23,7 +25,6 @@ from ocrd_models.ocrd_page import (
 )
 from ocrd import Processor
 
-from .. import get_ocrd_tool
 from .common import check_line, pil2array
 from .ocrolib import lstm, load_object, midrange
 
@@ -77,17 +78,8 @@ def recognize(image, pad, network, check=True):
 
 class OcropyRecognize(Processor):
     logger: Logger
-
-    def __init__(self, *args, **kwargs):
-        self.ocrd_tool = get_ocrd_tool()
-        self.pad = 16 # ocropus-rpred default
-        self.network = None # set in process
-        kwargs['ocrd_tool'] = self.ocrd_tool['tools'][self.executable]
-        kwargs['version'] = self.ocrd_tool['version']
-        super(OcropyRecognize, self).__init__(*args, **kwargs)
-        if hasattr(self, 'output_file_grp'):
-            # processing context
-            self.setup()
+    network: Any
+    pad: int
 
     @property
     def executable(self):
@@ -95,6 +87,7 @@ class OcropyRecognize(Processor):
 
     def setup(self):
         self.logger = getLogger('processor.OcropyRecognize')
+        self.pad = 16
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 1)
         # from ocropus-rpred:
@@ -110,7 +103,7 @@ class OcropyRecognize(Processor):
         be resolved with OcrdResourceManager to a valid readeable file and
         returns it.  If not, it checks if the model can be found in the
         dirname(__file__)/models/ directory."""
-        canread = lambda p: isfile(p) and os.access(p, os.R_OK)
+        canread = lambda p: isfile(p) and access(p, R_OK)
         try:
             model = self.resolve_resource(self.parameter['model'])
             if canread(model):
