@@ -118,7 +118,7 @@ class OcropyBinarize(Processor):
             else: # region
                 regions = page.get_AllRegions(classes=['Text'], order='reading-order')
             if not regions:
-                self.logger.warning(f"Page '{page_id}' contains no text regions")
+                self.logger.warning(f"Page '{page_id}' contains no regions")
             for region in regions:
                 region_image, region_xywh = self.workspace.image_from_segment(
                     region, page_image, page_xywh, feature_filter='binarized')
