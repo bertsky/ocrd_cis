@@ -109,7 +109,7 @@ class OcropyBinarize(Processor):
             try:
                 ret.append(self.process_page(page, page_image, page_xywh, zoom, page_id, output_file_id))
             except ValueError as e:
-                self.logger.exception(e)
+                self.logger.error(e)
         else:
             if level == 'table':
                 regions = page.get_TableRegion()
@@ -125,7 +125,7 @@ class OcropyBinarize(Processor):
                         ret.append(self.process_region(region, region_image, region_xywh, zoom, region.id, output_file_id))
                         continue
                     except ValueError as e:
-                        self.logger.exception(e)
+                        self.logger.error(e)
                 lines = region.get_TextLine()
                 if not lines:
                     self.logger.warning(f"Page '{page_id}' region '{region.id}' contains no text lines")
@@ -135,7 +135,7 @@ class OcropyBinarize(Processor):
                     try:
                         ret.append(self.process_line(line, line_image, line_xywh, zoom, page_id, region.id, output_file_id))
                     except ValueError as e:
-                        self.logger.exception(e)
+                        self.logger.error(e)
         return ret
 
     def process_page(self, page, page_image, page_xywh, zoom, page_id, file_id) -> Tuple[Image.Image, str, str]:
