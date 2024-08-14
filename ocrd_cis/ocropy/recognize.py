@@ -125,18 +125,13 @@ class OcropyRecognize(Processor):
         assert page
 
         page_image, page_coords, _ = self.workspace.image_from_page(page, page_id)
-        ret = [pcgts]
-
         self.logger.info(f"Recognizing text in page '{page_id}'")
         # region, line, word, or glyph level:
         regions = page.get_AllRegions(classes=['Text'])
         if not regions:
             self.logger.warning(f"Page '{page_id}' contains no text regions")
         self.process_regions(regions, maxlevel, page_image, page_coords)
-
-        file_path = join(self.output_file_grp, output_file_id + '.xml')
-        ret.append((output_file_id, file_path))
-        return ret
+        return [pcgts]
 
     # TODO: remove when `process_page_pcgts` is validated to be correct
     def process(self):
