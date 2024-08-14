@@ -115,6 +115,30 @@ class OcropyRecognize(Processor):
                 self.parameter['model'], self.parameter['model'])
         exit(1)
 
+    def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
+        maxlevel = self.parameter['textequiv_level']
+        assert self.workspace
+        self.logger.debug(f'Max level: "{maxlevel}"')
+
+        pcgts = input_pcgts[0]
+        page = pcgts.get_Page()
+        assert page
+
+        page_image, page_coords, _ = self.workspace.image_from_page(page, page_id)
+        ret = [pcgts]
+
+        self.logger.info(f"Recognizing text in page '{page_id}'")
+        # region, line, word, or glyph level:
+        regions = page.get_AllRegions(classes=['Text'])
+        if not regions:
+            self.logger.warning(f"Page '{page_id}' contains no text regions")
+        self.process_regions(regions, maxlevel, page_image, page_coords)
+
+        file_path = join(self.output_file_grp, output_file_id + '.xml')
+        ret.append((output_file_id, file_path))
+        return ret
+
+    # TODO: remove when `process_page_pcgts` is validated to be correct
     def process(self):
         """Recognize lines / words / glyphs of the workspace.
 
