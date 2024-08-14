@@ -71,7 +71,7 @@ class OcropyBinarize(Processor):
         method = self.parameter['method']
         if self.parameter['grayscale'] and method != 'ocropy':
             self.logger.critical(f'Requested method {method} does not support grayscale normalized output')
-            raise Exception('only method=ocropy allows grayscale=true')
+            raise ValueError('only method=ocropy allows grayscale=true')
 
     def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
         """Binarize (and optionally deskew/despeckle) the pages/regions/lines of the workspace.
