@@ -135,7 +135,7 @@ class OcropyBinarize(Processor):
                         line, region_image, region_xywh, feature_filter='binarized')
                     try:
                         ret.append(self.process_line(line, line_image, line_xywh, zoom, page_id, region.id, output_file_id))
-                    except alueError as e:
+                    except ValueError as e:
                         self.logger.exception(e)
         return ret
 
