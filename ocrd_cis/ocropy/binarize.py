@@ -123,7 +123,8 @@ class OcropyBinarize(Processor):
                     region, page_image, page_xywh, feature_filter='binarized')
                 if level == 'region':
                     try:
-                        ret.append(self.process_region(region, region_image, region_xywh, zoom, page_id, file_id))
+                        ret.append(self.process_region(region, region_image, region_xywh, zoom, region.id, output_file_id))
+                        continue
                     except ValueError as e:
                         self.logger.exception(e)
                 lines = region.get_TextLine()
@@ -133,8 +134,8 @@ class OcropyBinarize(Processor):
                     line_image, line_xywh = self.workspace.image_from_segment(
                         line, region_image, region_xywh, feature_filter='binarized')
                     try:
-                        ret.append(self.process_line(line, line_image, line_xywh, zoom, page_id, region.id, file_id))
-                    except ValueError as e:
+                        ret.append(self.process_line(line, line_image, line_xywh, zoom, page_id, region.id, output_file_id))
+                    except alueError as e:
                         self.logger.exception(e)
         return ret
 
