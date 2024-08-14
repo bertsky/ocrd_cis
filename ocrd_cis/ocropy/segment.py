@@ -57,7 +57,7 @@ from .common import (
     lines2regions
 )
 
-def masks2polygons(bg_labels, baselines, fg_bin, name, min_area=None, simplify=None, open_holes=False, reorder=True, logger=None):
+def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=None, simplify=None, open_holes=False, reorder=True):
     """Convert label masks into polygon coordinates.
 
     Given a Numpy array of background labels ``bg_labels``,
@@ -230,9 +230,9 @@ def masks2polygons(bg_labels, baselines, fg_bin, name, min_area=None, simplify=N
             # get baseline segments intersecting with this line mask
             # and concatenate them from left to right
             if baselines is not None:
-                base = join_baselines([baseline.intersection(polygon)
+                base = join_baselines(logger, [baseline.intersection(polygon)
                                        for baseline in baselines
-                                       if baseline.intersects(polygon)], name, logger)
+                                       if baseline.intersects(polygon)], name)
                 if base is not None:
                     base = base.coords
             else:
@@ -416,7 +416,7 @@ class OcropySegment(Processor):
                             roelem = reading_order.get(region.id)
                             # replace by empty group with same index and ref
                             # (which can then take the cells as subregions)
-                            reading_order[region.id] = page_subgroup_in_reading_order(roelem, self.logger)
+                            reading_order[region.id] = page_subgroup_in_reading_order(self.logger, roelem)
                         else:
                             self.logger.warning('skipping table "%s" with existing TextRegions', region.id)
                             continue
@@ -434,7 +434,7 @@ class OcropySegment(Processor):
                     elif overwrite_order:
                         # replace by empty ordered group with same (index and) ref
                         # (which can then take the cells as subregions)
-                        roelem = page_subgroup_in_reading_order(roelem, self.logger)
+                        roelem = page_subgroup_in_reading_order(self.logger, roelem)
                         reading_order[region.id] = roelem
                     elif isinstance(roelem, (OrderedGroupType, OrderedGroupIndexedType)):
                         self.logger.warning("Page '%s' table region '%s' already has an ordered group (%s)",
@@ -446,7 +446,7 @@ class OcropySegment(Processor):
                     else:
                         # replace regionRef(Indexed) by group with same index and ref
                         # (which can then take the cells as subregions)
-                        roelem = page_subgroup_in_reading_order(roelem, self.logger)
+                        roelem = page_subgroup_in_reading_order(self.logger, roelem)
                         reading_order[region.id] = roelem
                     # go get TextRegions with TextLines (and SeparatorRegions)
                     self._process_element(region, subignore, region_image, region_coords,
@@ -661,16 +661,14 @@ class OcropySegment(Processor):
                                                        seps=np.maximum(sepmask, colseps))
                 region_mask |= region_line_labels > 0
                 # find contours for region (can be non-contiguous)
-                regions, _ = masks2polygons(region_mask * region_label, None, element_bin,
+                regions, _ = masks2polygons(self.logger, region_mask * region_label, None, element_bin,
                                             '%s "%s"' % (element_name, element_id),
                                             min_area=6000/zoom/zoom,
-                                            simplify=ignore_labels * ~(sep_bin),
-                                            logger=self.logger)
+                                            simplify=ignore_labels * ~(sep_bin))
                 # find contours for lines (can be non-contiguous)
-                lines, _ = masks2polygons(region_line_labels, baselines, element_bin,
+                lines, _ = masks2polygons(self.logger, region_line_labels, baselines, element_bin,
                                           'region "%s"' % element_id,
-                                          min_area=640/zoom/zoom,
-                                          logger=self.logger)
+                                          min_area=640/zoom/zoom)
                 # create new lines in new regions (allocating by intersection)
                 line_polys = [Polygon(polygon) for _, polygon, _ in lines]
                 for _, region_polygon, _ in regions:
@@ -722,8 +720,8 @@ class OcropySegment(Processor):
             # (e.g. drop-capitals or images) ...
             self.logger.info('Found %d large image regions for %s "%s"', images.max(), element_name, element_id)
             # find contours around region labels (can be non-contiguous):
-            image_polygons, _ = masks2polygons(images, None, element_bin,
-                                               '%s "%s"' % (element_name, element_id), self.logger)
+            image_polygons, _ = masks2polygons(self.logger, images, None, element_bin,
+                                               '%s "%s"' % (element_name, element_id))
             for image_label, polygon, _ in image_polygons:
                 # convert back to absolute (page) coordinates:
                 region_polygon = coordinates_for_segment(polygon, image, coords)
@@ -740,9 +738,9 @@ class OcropySegment(Processor):
             # split detected separator labels into separator regions:
             self.logger.info('Found %d separators for %s "%s"', seplines.max(), element_name, element_id)
             # find contours around region labels (can be non-contiguous):
-            sep_polygons, _ = masks2polygons(seplines, None, element_bin,
+            sep_polygons, _ = masks2polygons(self.logger, seplines, None, element_bin,
                                              '%s "%s"' % (element_name, element_id),
-                                             open_holes=True, reorder=False, logger=self.logger)
+                                             open_holes=True, reorder=False)
             for sep_label, polygon, _ in sep_polygons:
                 # convert back to absolute (page) coordinates:
                 region_polygon = coordinates_for_segment(polygon, image, coords)
@@ -774,9 +772,9 @@ class OcropySegment(Processor):
             # ensure the new line labels do not extrude from the region:
             line_labels = line_labels * region_mask
             # find contours around labels (can be non-contiguous):
-            line_polygons, _ = masks2polygons(line_labels, baselines, element_bin,
+            line_polygons, _ = masks2polygons(self.logger, line_labels, baselines, element_bin,
                                               'region "%s"' % element_id,
-                                              min_area=640/zoom/zoom, logger=self.logger)
+                                              min_area=640/zoom/zoom)
             line_no = 0
             for line_label, polygon, baseline in line_polygons:
                 # convert back to absolute (page) coordinates:
@@ -918,9 +916,7 @@ def join_polygons(polygons, loc='', scale=20):
         jointp = make_valid(jointp)
     return jointp
 
-def join_baselines(baselines, loc='', logger = None):
-    if not logger:
-        raise ValueError(f"Logger has not been passed by the caller")
+def join_baselines(logger: Logger, baselines, loc=''):
     lines = []
     for baseline in baselines:
         if (baseline.is_empty or
@@ -1062,7 +1058,7 @@ def page_add_to_reading_order(rogroup, region_id, index=None):
             index += 1
     return index
 
-def page_subgroup_in_reading_order(roelem, logger = None):
+def page_subgroup_in_reading_order(logger: Logger, roelem):
     """Replace given RO element by an equivalent OrderedGroup.
     
     Given a ReadingOrder element ``roelem`` (of any type),
@@ -1076,9 +1072,6 @@ def page_subgroup_in_reading_order(roelem, logger = None):
     
     Return the new group object.
     """
-    if not logger:
-        raise ValueError(f"Logger has not been passed by the caller")
-
     if not roelem:
         logger.error('Cannot subgroup from empty ReadingOrder element')
         return roelem

@@ -22,9 +22,8 @@ from . import common
 from .common import array2pil, determine_zoom, pil2array, remove_noise
 
 
-def binarize(pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zoom=1.0):
-    LOG = getLogger('processor.OcropyBinarize')
-    LOG.debug('binarizing %dx%d image with method=%s', pil_image.width, pil_image.height, method)
+def binarize(logger: Logger, pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zoom=1.0):
+    logger.debug('binarizing %dx%d image with method=%s', pil_image.width, pil_image.height, method)
     if method == 'none':
         # useful if the images are already binary,
         # but lack image attribute `binarized`
@@ -152,6 +151,7 @@ class OcropyBinarize(Processor):
         else:
             maxskew = self.parameter['maxskew']
         bin_image, angle = binarize(
+            self.logger,
             page_image,
             method=self.parameter['method'],
             maxskew=maxskew,
@@ -191,6 +191,7 @@ class OcropyBinarize(Processor):
             # orientation has already been annotated (by previous deskewing),
             # so skip deskewing here:
             bin_image, _ = binarize(
+                self.logger,
                 region_image,
                 method=self.parameter['method'],
                 maxskew=0,
@@ -198,6 +199,7 @@ class OcropyBinarize(Processor):
                 zoom=zoom)
         else:
             bin_image, angle = binarize(
+                self.logger,
                 region_image,
                 method=self.parameter['method'],
                 maxskew=self.parameter['maxskew'],
@@ -235,6 +237,7 @@ class OcropyBinarize(Processor):
         self.logger.info(f"About to binarize page '{page_id}' region '{region_id}' line '{line.id}'")
         features = line_xywh['features']
         bin_image, angle = binarize(
+            self.logger,
             line_image,
             method=self.parameter['method'],
             maxskew=self.parameter['maxskew'],

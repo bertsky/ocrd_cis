@@ -265,8 +265,8 @@ class OcropyResegment(Processor):
                                                   line_polygon[:, 0],
                                                   parent_bin.shape)
                     new_labels[line_y, line_x] = i + 1
-            spread_dist(lines, line_labels, new_labels, parent_bin, components, parent_coords,
-                        maxdist=maxdist or scale/2, loc=parent.id, threshold=threshold, logger=self.logger)
+            spread_dist(self.logger, lines, line_labels, new_labels, parent_bin, components, parent_coords,
+                        maxdist=maxdist or scale/2, loc=parent.id, threshold=threshold)
             return
         try:
             # TODO: 'scale' passed as a param may not be always defined (mehmedGIT)
@@ -280,9 +280,9 @@ class OcropyResegment(Processor):
         self.logger.info("Found %d new line labels for %d existing lines on %s '%s'",
                  new_line_labels.max(), len(lines), tag, parent.id)
         # polygonalize and prepare comparison
-        new_line_polygons, new_line_labels = masks2polygons(
+        new_line_polygons, new_line_labels = masks2polygons(self.logger,
             new_line_labels, new_baselines, parent_bin, '%s "%s"' % (tag, parent.id),
-            min_area=640/zoom/zoom, logger=self.logger)
+            min_area=640/zoom/zoom)
         DSAVE('line_labels', [np.argmax(np.insert(line_labels, 0, 0, axis=0), axis=0), parent_bin])
         DSAVE('new_line_labels', [new_line_labels, parent_bin])
         new_line_polygons, new_baselines = list(zip(*[(Polygon(poly), LineString(base))
@@ -392,8 +392,8 @@ class OcropyResegment(Processor):
                 self.logger.debug("joining %d new line polygons for '%s'", len(new_lines), line.id)
             new_polygon = join_polygons([new_line_polygons[i] #intersections[(i, j)]
                                          for i in new_lines], loc=line.id, scale=scale)
-            new_baseline = join_baselines([new_polygon.intersection(new_baselines[i])
-                                           for i in new_lines], loc=line.id, logger=self.logger)
+            new_baseline = join_baselines(self.logger, [new_polygon.intersection(new_baselines[i])
+                                           for i in new_lines], loc=line.id)
             # convert back to absolute (page) coordinates:
             line_polygon = coordinates_for_segment(new_polygon.exterior.coords[:-1],
                                                    parent_image, parent_coords)
@@ -427,11 +427,9 @@ class OcropyResegment(Processor):
                         continue
                     otherline.get_Coords().set_points(points_from_polygon(other_polygon))
 
-def spread_dist(lines, old_labels, new_labels, binarized, components, coords,
-                maxdist=43, loc='', threshold=0.9, logger = None):
+def spread_dist(logger: Logger, lines, old_labels, new_labels, binarized, components, coords,
+                maxdist=43, loc='', threshold=0.9):
     """redefine line coordinates by contourizing spread of connected components propagated from new labels"""
-    if not logger:
-        raise ValueError(f"Logger has not been passed by the caller")
     DSAVE('seeds', [new_labels, (components>0)])
     # allocate to connected components consistently
     # (ignoring smallest components like punctuation)
