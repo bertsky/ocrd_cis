@@ -2103,14 +2103,15 @@ def lines2regions(binary, llabels,
     # DSAVE('rlabels_closed', rlabels)
     return rlabels
 
-def determine_zoom(dpi: float, page_image_info: OcrdExif) -> (float, float):
+def determine_zoom(logger: logging.Logger, dpi: float, page_image_info: OcrdExif) -> float:
     if dpi > 0:
         zoom = 300.0/dpi
     elif page_image_info.resolution != 1:
         dpi = page_image_info.resolution
         if page_image_info.resolutionUnit == 'cm':
             dpi *= 2.54
+        logger.info(f"Page '{page_id}' uses {dpi} DPI.")
         zoom = 300.0/dpi
     else:
         zoom = 1
-    return zoom, dpi
+    return zoom

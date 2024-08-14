@@ -63,8 +63,7 @@ class OcropyDenoise(Processor):
                 page, page_id,
                 feature_selector='binarized' if level == 'page' else '')
 
-            zoom, dpi = determine_zoom(self.parameter['dpi'], page_image_info)
-            self.logger.info(f"Page '{page_id}' uses {dpi} DPI. Determined zoom={zoom}")
+            zoom = determine_zoom(self.logger, self.parameter['dpi'], page_image_info)
 
             if level == 'page':
                 self.process_segment(page, page_image, page_xywh, zoom,

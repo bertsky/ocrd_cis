@@ -87,8 +87,8 @@ class OcropyClip(Processor):
             
             page_image, page_coords, page_image_info = self.workspace.image_from_page(
                 page, page_id, feature_selector='binarized')
-            zoom, dpi = determine_zoom(self.parameter['dpi'], page_image_info)
-            self.logger.info(f"Page '{page_id}' uses {dpi} DPI. Determined zoom={zoom}")
+            # TODO: zoom is not used anywhere, is it still useful to have this call here?
+            zoom = determine_zoom(self.logger, self.parameter['dpi'], page_image_info)
 
             # FIXME: what about text regions inside table regions?
             regions = list(page.get_TextRegion())
