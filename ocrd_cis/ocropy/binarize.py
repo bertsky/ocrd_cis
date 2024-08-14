@@ -21,7 +21,6 @@ from ocrd import Processor
 from . import common
 from .common import array2pil, determine_zoom, pil2array, remove_noise
 
-#sys.path.append(dirname(abspath(__file__)))
 
 def binarize(pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zoom=1.0):
     LOG = getLogger('processor.OcropyBinarize')
