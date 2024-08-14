@@ -76,7 +76,7 @@ class OcropyBinarize(Processor):
     def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
         """Binarize (and optionally deskew/despeckle) the pages/regions/lines of the workspace.
 
-        THEN Iterate over the PAGE-XML element hierarchy down to the requested
+        Iterate over the PAGE-XML element hierarchy down to the requested
         ``level-of-operation``.
 
         Next, for each file, crop each segment image according to the layout
