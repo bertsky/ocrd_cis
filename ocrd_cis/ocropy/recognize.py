@@ -19,7 +19,7 @@ from ocrd_utils import (
 )
 from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import (
-    to_xml, TextEquivType,
+    to_xml, TextEquivType, OcrdPage,
     CoordsType, GlyphType, WordType
 )
 from ocrd import Processor
