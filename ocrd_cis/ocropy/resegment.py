@@ -117,8 +117,8 @@ class OcropyResegment(Processor):
             page_image, page_coords, page_image_info = self.workspace.image_from_page(
                 page, page_id, feature_selector='binarized')
 
-            zoom = determine_zoom(self.parameter['dpi'], page_image_info)
-            self.logger.info(f"Page '{page_id}' uses {self.parameter['dpi']} DPI")
+            zoom, dpi = determine_zoom(self.parameter['dpi'], page_image_info)
+            self.logger.info(f"Page '{page_id}' uses {dpi} DPI. Determined zoom={zoom}")
 
             ignore = (page.get_ImageRegion() +
                       page.get_LineDrawingRegion() +
