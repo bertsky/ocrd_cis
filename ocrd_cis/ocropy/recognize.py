@@ -11,18 +11,16 @@ from rapidfuzz.distance import Levenshtein
 
 from ocrd_utils import (
     getLogger,
-    make_file_id,
     coordinates_for_segment,
     polygon_from_bbox,
     points_from_polygon,
-    MIMETYPE_PAGE
 )
-from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import (
-    to_xml, TextEquivType, OcrdPage,
+    TextEquivType, OcrdPage,
     CoordsType, GlyphType, WordType
 )
 from ocrd import Processor
+from ocrd.processor import OcrdPageResult
 
 from .common import check_line, pil2array
 from .ocrolib import lstm, load_object, midrange
@@ -116,7 +114,7 @@ class OcropyRecognize(Processor):
             f"Could not find model {p_model}. Try 'ocrd resmgr download ocrd-cis-ocropy-recognize {p_model}")
         exit(1)
 
-    def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: str = None) -> OcrdPageResult:
         """Recognize lines / words / glyphs of a page.
 
         Open and deserialize the PAGE input file and its respective image,
@@ -156,7 +154,7 @@ class OcropyRecognize(Processor):
         if not regions:
             self.logger.warning(f"Page '{page_id}' contains no text regions")
         self.process_regions(regions, max_level, page_image, page_xywh)
-        return [pcgts]
+        return OcrdPageResult(pcgts)
 
     def process_regions(self, regions, maxlevel, page_image, page_xywh):
         edits = 0
