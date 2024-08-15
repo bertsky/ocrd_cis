@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 from logging import Logger
-from typing import Tuple
+from typing import Optional
 
 from os.path import join
 import numpy as np
