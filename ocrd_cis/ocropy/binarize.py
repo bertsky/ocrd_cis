@@ -11,8 +11,7 @@ from typing import Union, Optional
 #import kraken.binarization
 
 from ocrd_utils import getLogger
-from ocrd_models.ocrd_page import AlternativeImageType
-from ocrd_models import OcrdFile, ClientSideOcrdFile, OcrdPage
+from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
 from ocrd import Processor
 from ocrd.processor import OcrdPageResult, OcrdPageResultImage
 
@@ -69,7 +68,7 @@ class OcropyBinarize(Processor):
             self.logger.critical(f'Requested method {method} does not support grayscale normalized output')
             raise ValueError('only method=ocropy allows grayscale=true')
 
-    def process_page_pcgts(self, *input_pcgts: Optional[Union[OcrdFile, ClientSideOcrdFile]], page_id: str = None) -> OcrdPageResult:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: str = None) -> OcrdPageResult:
         """Binarize (and optionally deskew/despeckle) the pages/regions/lines of the workspace.
 
         Iterate over the PAGE-XML element hierarchy down to the requested
