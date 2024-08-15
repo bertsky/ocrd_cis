@@ -1,21 +1,15 @@
 from __future__ import absolute_import
 from logging import Logger
+from typing import Optional
 
 import cv2
 import numpy as np
 from PIL import Image
-from os.path import abspath, dirname, join
 
-from typing import Tuple
+from ocrd.processor.ocrd_page_result import OcrdPageResult, OcrdPageResultImage
 
-#import kraken.binarization
-
-from ocrd_utils import (
-    getLogger,
-    make_file_id,
-    MIMETYPE_PAGE
-)
-from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage, to_xml
+from ocrd_utils import getLogger
+from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
 from ocrd import Processor
 
 from . import common
@@ -71,7 +65,7 @@ class OcropyBinarize(Processor):
             self.logger.critical(f'Requested method {method} does not support grayscale normalized output')
             raise ValueError('only method=ocropy allows grayscale=true')
 
-    def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Binarize (and optionally deskew/despeckle) the pages/regions/lines of the workspace.
 
         Iterate over the PAGE-XML element hierarchy down to the requested
@@ -97,16 +91,17 @@ class OcropyBinarize(Processor):
         self.logger.debug(f'Level of operation: "{level}"')
 
         pcgts = input_pcgts[0]
+        assert pcgts
         page = pcgts.get_Page()
         assert page
 
         page_image, page_xywh, page_image_info = self.workspace.image_from_page(page, page_id, feature_filter='binarized')
         zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
-        ret = [pcgts]
+        result = OcrdPageResult(pcgts)
         if level == 'page':
             try:
-                ret.append(self.process_page(page, page_image, page_xywh, zoom, page_id, output_file_id))
+                result.images.append(self.process_page(page, page_image, page_xywh, zoom, page_id))
             except ValueError as e:
                 self.logger.error(e)
         else:
@@ -121,7 +116,7 @@ class OcropyBinarize(Processor):
                     region, page_image, page_xywh, feature_filter='binarized')
                 if level == 'region':
                     try:
-                        ret.append(self.process_region(region, region_image, region_xywh, zoom, region.id, output_file_id))
+                        result.images.append(self.process_region(region, region_image, region_xywh, zoom, region.id))
                         continue
                     except ValueError as e:
                         self.logger.error(e)
@@ -132,12 +127,12 @@ class OcropyBinarize(Processor):
                     line_image, line_xywh = self.workspace.image_from_segment(
                         line, region_image, region_xywh, feature_filter='binarized')
                     try:
-                        ret.append(self.process_line(line, line_image, line_xywh, zoom, page_id, region.id, output_file_id))
+                        result.images.append(self.process_line(line, line_image, line_xywh, zoom, page_id, region.id))
                     except ValueError as e:
                         self.logger.error(e)
-        return ret
+        return result
 
-    def process_page(self, page, page_image, page_xywh, zoom, page_id, file_id) -> Tuple[Image.Image, str, str]:
+    def process_page(self, page, page_image, page_xywh, zoom, page_id) -> OcrdPageResultImage:
         if not page_image.width or not page_image.height:
             raise ValueError(f"Skipping page '{page_id}' with zero size")
         self.logger.info(f"About to binarize page '{page_id}'")
@@ -171,18 +166,17 @@ class OcropyBinarize(Processor):
         orientation = 180 - (180 - orientation) % 360 # map to [-179.999,180]
         page.set_orientation(orientation)
         if self.parameter['grayscale']:
-            file_id += '.IMG-NRM'
+            id_suffix = '.IMG-NRM'
             features += ',grayscale_normalized'
         else:
-            file_id += '.IMG-BIN'
+            id_suffix = '.IMG-BIN'
             features += ',binarized'
-        bin_image_id = f'{file_id}.IMG-BIN'
-        bin_image_path = join(self.output_file_grp, f'{bin_image_id}.png')
         # update PAGE (reference the image file):
-        page.add_AlternativeImage(AlternativeImageType(filename=bin_image_path, comments=features))
-        return bin_image, bin_image_id, bin_image_path
+        alternative_image = AlternativeImageType(comments=features)
+        page.add_AlternativeImage(alternative_image)
+        return OcrdPageResultImage(bin_image, id_suffix, alternative_image)
 
-    def process_region(self, region, region_image, region_xywh, zoom, page_id, file_id) -> Tuple[Image.Image, str, str]:
+    def process_region(self, region, region_image, region_xywh, zoom, page_id) -> OcrdPageResultImage:
         if not region_image.width or not region_image.height:
             raise ValueError(f"Skipping region '{region.id}' with zero size")
         self.logger.info(f"About to binarize page '{page_id}' region '{region.id}'")
@@ -217,21 +211,19 @@ class OcropyBinarize(Processor):
         orientation = -region_xywh['angle']
         orientation = 180 - (180 - orientation) % 360 # map to [-179.999,180]
         region.set_orientation(orientation)
-        bin_image_id = f'{file_id}_{region.id}'
+        id_suffix = f'{region.id}'
         if self.parameter['grayscale']:
-            bin_image_id += '.IMG-NRM'
+            id_suffix += '.IMG-NRM'
             features += ',grayscale_normalized'
         else:
-            bin_image_id += '.IMG-BIN'
+            id_suffix += '.IMG-BIN'
             features += ',binarized'
-        bin_image_path = join(self.output_file_grp, f'{bin_image_id}.png')
         # update PAGE (reference the image file):
-        region.add_AlternativeImage(AlternativeImageType(filename=bin_image_path, comments=features))
-        return bin_image, bin_image_id, bin_image_path
+        alternative_image = AlternativeImageType(comments=features)
+        region.add_AlternativeImage(alternative_image)
+        return OcrdPageResultImage(bin_image, id_suffix, alternative_image)
 
-    def process_line(
-        self, line, line_image, line_xywh, zoom, page_id, region_id, file_id
-    ) -> Tuple[Image.Image, str, str]:
+    def process_line(self, line, line_image, line_xywh, zoom, page_id, region_id) -> OcrdPageResultImage:
         if not line_image.width or not line_image.height:
             raise ValueError(f"Skipping line '{line.id}' with zero size")
         self.logger.info(f"About to binarize page '{page_id}' region '{region_id}' line '{line.id}'")
@@ -256,14 +248,14 @@ class OcropyBinarize(Processor):
         bin_image = remove_noise(bin_image, maxsize=self.parameter['noise_maxsize'])
         if self.parameter['noise_maxsize']:
             features += ',despeckled'
-        bin_image_id = f'{file_id}_{region_id}_{line.id}'
+        id_suffix = f'{region_id}_{line.id}'
         if self.parameter['grayscale']:
-            bin_image_id += '.IMG-NRM'
+            id_suffix += '.IMG-NRM'
             features += ',grayscale_normalized'
         else:
-            bin_image_id += '.IMG-BIN'
+            id_suffix += '.IMG-BIN'
             features += ',binarized'
-        bin_image_path = join(self.output_file_grp, f'{bin_image_id}.png')
         # update PAGE (reference the image file):
-        line.add_AlternativeImage(AlternativeImageType(filename=bin_image_path, comments=features))
-        return bin_image, bin_image_id, bin_image_path
+        alternative_image = AlternativeImageType(comments=features)
+        line.add_AlternativeImage(alternative_image)
+        return OcrdPageResultImage(bin_image, id_suffix, alternative_image)
