@@ -8,19 +8,17 @@ from PIL import Image, ImageStat, ImageOps
 from shapely.geometry import Polygon
 from shapely.prepared import prep
 
-from ocrd_modelfactory import page_from_file
-from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage, to_xml
+from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
 from ocrd import Processor
+from ocrd.processor import OcrdPageResult, OcrdPageResultImage
 from ocrd_utils import (
     getLogger,
-    make_file_id,
     coordinates_of_segment,
     polygon_from_points,
     bbox_from_polygon,
     image_from_polygon,
     polygon_mask,
     crop_image,
-    MIMETYPE_PAGE
 )
 
 from .ocrolib import midrange, morph
@@ -38,7 +36,7 @@ class OcropyClip(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropyClip')
 
-    def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: str = None) -> OcrdPageResult:
         """Clip text regions / lines of a page at intersections with neighbours.
 
         Open and deserialize PAGE input file and its respective image,
@@ -85,7 +83,7 @@ class OcropyClip(Processor):
             page, page_id, feature_selector='binarized')
         # The zoom is not used anywhere
         zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
-        ret = [pcgts]
+        ret = OcrdPageResult(pcgts)
 
         # FIXME: what about text regions inside table regions?
         regions = list(page.get_TextRegion())
@@ -141,9 +139,9 @@ class OcropyClip(Processor):
                               if shape.intersects(shapej)]
                 if neighbours:
                     segment_region_file_id = f"{output_file_id}_{region.id}"
-                    ret.append(self.process_segment(
+                    ret.images.append(self.process_segment(
                         region, masks[i], polygons[i], neighbours, background_image,
-                        page_image, page_xywh, page_bin, page_id, segment_region_file_id))
+                        page_image, page_xywh, page_bin, page_id))
                 continue
             # level == 'line':
             lines = region.get_TextLine()
@@ -172,14 +170,14 @@ class OcropyClip(Processor):
                               if shape.intersects(shapej)]
                 if neighbours:
                     segment_line_file_id = f"{output_file_id}_{region.id}_{line.id}"
-                    ret.append(self.process_segment(
+                    ret.images.append(self.process_segment(
                         line, masks[j], polygons[j], neighbours, background_image,
-                        region_image, region_coords, region_bin, page_id, segment_line_file_id))
+                        region_image, region_coords, region_bin, page_id))
         return ret
 
     def process_segment(self, segment, segment_mask, segment_polygon, neighbours,
                         background_image, parent_image, parent_coords, parent_bin,
-                        page_id, file_id) -> Tuple[Image.Image, str, str]:
+                        page_id) -> OcrdPageResultImage:
         # initialize AlternativeImage@comments classes from parent, except
         # for those operations that can apply on multiple hierarchy levels:
         features = ','.join(
@@ -217,8 +215,7 @@ class OcropyClip(Processor):
         # recrop segment into rectangle, just as image_from_segment would do
         # (and also clipping with background colour):
         segment_image = crop_image(segment_image,box=segment_bbox)
-        segment_image_id = file_id + '.IMG-CLIP'
-        segment_image_path = join(self.output_file_grp, f'{segment_image_id}.png')
         # update PAGE (reference the image file):
-        segment.add_AlternativeImage(AlternativeImageType(filename=segment_image_path, comments=features))
-        return segment_image, segment_image_id, segment_image_path
+        alternative_image = AlternativeImageType(comments=features)
+        segment.add_AlternativeImage(alternative_image)
+        return OcrdPageResultImage(segment_image, '.IMG-CLIP', alternative_image)
