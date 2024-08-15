@@ -112,7 +112,7 @@ class OcropyDewarp(Processor):
             page_image, page_xywh, page_image_info = self.workspace.image_from_page(
                 page, page_id)
 
-            zoom = determine_zoom(self.logger, self.parameter['dpi'], page_image_info)
+            zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
             regions = page.get_AllRegions(classes=['Text'], order='reading-order')
             if not regions:

@@ -339,7 +339,7 @@ class OcropySegment(Processor):
             # TODO: also allow grayscale_normalized (try/except?)
             page_image, page_coords, page_image_info = self.workspace.image_from_page(
                 page, page_id, feature_selector='binarized')
-            zoom = determine_zoom(self.logger, self.parameter['dpi'], page_image_info)
+            zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
             # aggregate existing regions so their foreground can be ignored
             ignore = (page.get_ImageRegion() +

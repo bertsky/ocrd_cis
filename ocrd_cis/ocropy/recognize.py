@@ -155,7 +155,7 @@ class OcropyRecognize(Processor):
         regions = page.get_AllRegions(classes=['Text'])
         if not regions:
             self.logger.warning(f"Page '{page_id}' contains no text regions")
-        self.process_regions(regions, max_level, page_image, page_coords)
+        self.process_regions(regions, max_level, page_image, page_xywh)
         return [pcgts]
 
     def process_regions(self, regions, maxlevel, page_image, page_xywh):

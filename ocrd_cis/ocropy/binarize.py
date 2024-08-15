@@ -101,7 +101,7 @@ class OcropyBinarize(Processor):
         assert page
 
         page_image, page_xywh, page_image_info = self.workspace.image_from_page(page, page_id, feature_filter='binarized')
-        zoom = determine_zoom(self.logger, self.parameter['dpi'], page_image_info)
+        zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
         ret = [pcgts]
         if level == 'page':

@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from logging import Logger
+from typing import Tuple
 
 from os.path import join
 import numpy as np
@@ -83,7 +84,7 @@ class OcropyClip(Processor):
         page_image, page_xywh, page_image_info = self.workspace.image_from_page(
             page, page_id, feature_selector='binarized')
         # The zoom is not used anywhere
-        zoom = determine_zoom(self.logger, self.parameter['dpi'], page_image_info)
+        zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
         ret = [pcgts]
 
         # FIXME: what about text regions inside table regions?
