@@ -115,26 +115,8 @@ class OcropyRecognize(Processor):
                 self.parameter['model'], self.parameter['model'])
         exit(1)
 
+    # TODO: Adapt the docstring comment to process_page_pcgts
     def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
-        maxlevel = self.parameter['textequiv_level']
-        assert self.workspace
-        self.logger.debug(f'Max level: "{maxlevel}"')
-
-        pcgts = input_pcgts[0]
-        page = pcgts.get_Page()
-        assert page
-
-        page_image, page_coords, _ = self.workspace.image_from_page(page, page_id)
-        self.logger.info(f"Recognizing text in page '{page_id}'")
-        # region, line, word, or glyph level:
-        regions = page.get_AllRegions(classes=['Text'])
-        if not regions:
-            self.logger.warning(f"Page '{page_id}' contains no text regions")
-        self.process_regions(regions, maxlevel, page_image, page_coords)
-        return [pcgts]
-
-    # TODO: remove when `process_page_pcgts` is validated to be correct
-    def process(self):
         """Recognize lines / words / glyphs of the workspace.
 
         Open and deserialise each PAGE input file and its respective image,
@@ -160,38 +142,21 @@ class OcropyRecognize(Processor):
         Produce a new output file by serialising the resulting hierarchy.
         """
         maxlevel = self.parameter['textequiv_level']
+        assert self.workspace
+        self.logger.debug(f'Max level: "{maxlevel}"')
 
-        # self.logger.info("Using model %s in %s for recognition", model)
-        for (n, input_file) in enumerate(self.input_files):
-            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
-            pcgts = page_from_file(self.workspace.download_file(input_file))
-            self.add_metadata(pcgts)
-            page_id = pcgts.pcGtsId or input_file.pageId or input_file.ID # (PageType has no id)
-            page = pcgts.get_Page()
+        pcgts = input_pcgts[0]
+        page = pcgts.get_Page()
+        assert page
 
-            page_image, page_coords, _ = self.workspace.image_from_page(
-                page, page_id)
-
-            self.logger.info("Recognizing text in page '%s'", page_id)
-            # region, line, word, or glyph level:
-            regions = page.get_AllRegions(classes=['Text'])
-            if not regions:
-                self.logger.warning("Page '%s' contains no text regions", page_id)
-            self.process_regions(regions, maxlevel, page_image, page_coords)
-
-            # update METS (add the PAGE file):
-            file_id = make_file_id(input_file, self.output_file_grp)
-            file_path = join(self.output_file_grp, file_id + '.xml')
-            pcgts.set_pcGtsId(file_id)
-            out = self.workspace.add_file(
-                ID=file_id,
-                file_grp=self.output_file_grp,
-                pageId=input_file.pageId,
-                local_filename=file_path,
-                mimetype=MIMETYPE_PAGE,
-                content=to_xml(pcgts))
-            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
-                             file_id, self.output_file_grp, out.local_filename)
+        page_image, page_coords, _ = self.workspace.image_from_page(page, page_id)
+        self.logger.info(f"Recognizing text in page '{page_id}'")
+        # region, line, word, or glyph level:
+        regions = page.get_AllRegions(classes=['Text'])
+        if not regions:
+            self.logger.warning(f"Page '{page_id}' contains no text regions")
+        self.process_regions(regions, maxlevel, page_image, page_coords)
+        return [pcgts]
 
     def process_regions(self, regions, maxlevel, page_image, page_coords):
         edits = 0

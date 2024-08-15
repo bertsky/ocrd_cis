@@ -37,7 +37,42 @@ class OcropyClip(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropyClip')
 
+    # TODO: Adapt the docstring comment to process_page_pcgts
     def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
+        """Clip text regions / lines of the workspace at intersections with neighbours.
+
+        Open and deserialise PAGE input files and their respective images,
+        then iterate over the element hierarchy down to the requested
+        ``level-of-operation``.
+
+        Next, get each segment image according to the layout annotation (by cropping
+        via coordinates into the higher-level image), as well as all its neighbours',
+        binarize them (without deskewing), and make a connected component analysis.
+        (Segments must not already have AlternativeImage annotated, otherwise they
+        will be skipped.)
+
+        Then, for each section of overlap with a neighbour, re-assign components
+        which are only contained in the neighbour by clipping them to white (background),
+        and export the (final) result as image file.
+
+        Add the new image file to the workspace along with the output fileGrp,
+        and using a file ID with suffix ``.IMG-CLIP`` along with further
+        identification of the input element.
+
+        Reference each new image in the AlternativeImage of the element.
+
+        Produce a new output file by serialising the resulting hierarchy.
+        """
+        # This makes best sense for overlapping segmentation, like current GT
+        # or Tesseract layout analysis. Most notably, it can suppress graphics
+        # and separators within or across a region or line. It _should_ ideally
+        # be run after binarization (on page level for region-level clipping,
+        # and on the region level for line-level clipping), because the
+        # connected component analysis after implicit binarization could be
+        # suboptimal, and the explicit binarization after clipping could be,
+        # too. However, region-level clipping _must_ be run before region-level
+        # deskewing, because that would make segments incomensurable with their
+        # neighbours.
         level = self.parameter['level-of-operation']
         assert self.workspace
         self.logger.debug(f'Level of operation: "{level}"')
@@ -142,165 +177,6 @@ class OcropyClip(Processor):
                         line, masks[j], polygons[j], neighbours, background_image,
                         region_image, region_coords, region_bin, page_id, segment_line_file_id))
         return ret
-
-    # TODO: remove when `process_page_pcgts` is validated to be correct
-    def process(self):
-        """Clip text regions / lines of the workspace at intersections with neighbours.
-
-        Open and deserialise PAGE input files and their respective images,
-        then iterate over the element hierarchy down to the requested
-        ``level-of-operation``.
-
-        Next, get each segment image according to the layout annotation (by cropping
-        via coordinates into the higher-level image), as well as all its neighbours',
-        binarize them (without deskewing), and make a connected component analysis.
-        (Segments must not already have AlternativeImage annotated, otherwise they
-        will be skipped.)
-
-        Then, for each section of overlap with a neighbour, re-assign components
-        which are only contained in the neighbour by clipping them to white (background),
-        and export the (final) result as image file.
-
-        Add the new image file to the workspace along with the output fileGrp,
-        and using a file ID with suffix ``.IMG-CLIP`` along with further
-        identification of the input element.
-
-        Reference each new image in the AlternativeImage of the element.
-
-        Produce a new output file by serialising the resulting hierarchy.
-        """
-        # This makes best sense for overlapping segmentation, like current GT
-        # or Tesseract layout analysis. Most notably, it can suppress graphics
-        # and separators within or across a region or line. It _should_ ideally
-        # be run after binarization (on page level for region-level clipping,
-        # and on the region level for line-level clipping), because the
-        # connected component analysis after implicit binarization could be
-        # suboptimal, and the explicit binarization after clipping could be,
-        # too. However, region-level clipping _must_ be run before region-level
-        # deskewing, because that would make segments incomensurable with their
-        # neighbours.
-        level = self.parameter['level-of-operation']
-
-        for (n, input_file) in enumerate(self.input_files):
-            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
-            file_id = make_file_id(input_file, self.output_file_grp)
-
-            pcgts = page_from_file(self.workspace.download_file(input_file))
-            self.add_metadata(pcgts)
-            page_id = pcgts.pcGtsId or input_file.pageId or input_file.ID # (PageType has no id)
-            page = pcgts.get_Page()
-            
-            page_image, page_coords, page_image_info = self.workspace.image_from_page(
-                page, page_id, feature_selector='binarized')
-            # TODO: zoom is not used anywhere, is it still useful to have this call here?
-            zoom = determine_zoom(self.logger, self.parameter['dpi'], page_image_info)
-
-            # FIXME: what about text regions inside table regions?
-            regions = list(page.get_TextRegion())
-            num_texts = len(regions)
-            regions += (
-                page.get_AdvertRegion() +
-                page.get_ChartRegion() +
-                page.get_ChemRegion() +
-                page.get_GraphicRegion() +
-                page.get_ImageRegion() +
-                page.get_LineDrawingRegion() +
-                page.get_MathsRegion() +
-                page.get_MusicRegion() +
-                page.get_NoiseRegion() +
-                page.get_SeparatorRegion() +
-                page.get_TableRegion() +
-                page.get_UnknownRegion())
-            if not num_texts:
-                self.logger.warning('Page "%s" contains no text regions', page_id)
-            background = ImageStat.Stat(page_image)
-            # workaround for Pillow#4925
-            if len(background.bands) > 1:
-                background = tuple(background.median)
-            else:
-                background = background.median[0]
-            if level == 'region':
-                background_image = Image.new(page_image.mode, page_image.size, background)
-                page_array = pil2array(page_image)
-                page_bin = np.array(page_array <= midrange(page_array), np.uint8)
-                # in absolute coordinates merely for comparison/intersection
-                shapes = [Polygon(polygon_from_points(region.get_Coords().points)) for region in regions]
-                # in relative coordinates for mask/cropping
-                polygons = [coordinates_of_segment(region, page_image, page_coords) for region in regions]
-                for i, polygon in enumerate(polygons[num_texts:], num_texts):
-                    # for non-text regions, extend mask by 3 pixels in each direction
-                    # to ensure they do not leak components accidentally
-                    # (accounts for bad cropping of such regions in GT):
-                    polygon = Polygon(polygon).buffer(3).exterior.coords[:-1] # keep open
-                    polygons[i] = polygon
-                masks = [pil2array(polygon_mask(page_image, polygon)).astype(np.uint8) for polygon in polygons]
-            for i, region in enumerate(regions):
-                if i >= num_texts:
-                    break # keep non-text regions unchanged
-                if level == 'region':
-                    if region.get_AlternativeImage():
-                        # FIXME: This should probably be an exception (bad workflow configuration).
-                        self.logger.warning(
-                            f'Page "{page_id}" region "{region.id}" already contains image data: skipping')
-                        continue
-                    shape = prep(shapes[i])
-                    neighbours = [(regionj, maskj) for shapej, regionj, maskj
-                                  in zip(shapes[:i] + shapes[i+1:],
-                                         regions[:i] + regions[i+1:],
-                                         masks[:i] + masks[i+1:])
-                                  if shape.intersects(shapej)]
-                    if neighbours:
-                        segment_region_file_id = f"{file_id}_{region.id}"
-                        self.process_segment(
-                            region, masks[i], polygons[i], neighbours, background_image,
-                            page_image, page_coords, page_bin, input_file.pageId, segment_region_file_id)
-                    continue
-                # level == 'line':
-                lines = region.get_TextLine()
-                if not lines:
-                    self.logger.warning(f'Page "{page_id}" region "{region.id}" contains no text lines')
-                    continue
-                region_image, region_coords = self.workspace.image_from_segment(
-                    region, page_image, page_coords, feature_selector='binarized')
-                background_image = Image.new(region_image.mode, region_image.size, background)
-                region_array = pil2array(region_image)
-                region_bin = np.array(region_array <= midrange(region_array), np.uint8)
-                # in absolute coordinates merely for comparison/intersection
-                shapes = [Polygon(polygon_from_points(line.get_Coords().points)) for line in lines]
-                # in relative coordinates for mask/cropping
-                polygons = [coordinates_of_segment(line, region_image, region_coords) for line in lines]
-                masks = [pil2array(polygon_mask(region_image, polygon)).astype(np.uint8) for polygon in polygons]
-                for j, line in enumerate(lines):
-                    if line.get_AlternativeImage():
-                        # FIXME: This should probably be an exception (bad workflow configuration).
-                        self.logger.warning(
-                            f'Page "{page_id}" region "{region.id}" line "{line.id}" already contains image '
-                            f'data: skipping')
-                        continue
-                    shape = prep(shapes[j])
-                    neighbours = [(linej, maskj) for shapej, linej, maskj
-                                  in zip(shapes[:j] + shapes[j+1:],
-                                         lines[:j] + lines[j+1:],
-                                         masks[:j] + masks[j+1:])
-                                  if shape.intersects(shapej)]
-                    if neighbours:
-                        segment_line_file_id = f"{file_id}_{region.id}_{line.id}"
-                        self.process_segment(
-                            line, masks[j], polygons[j], neighbours, background_image,
-                            region_image, region_coords, region_bin, input_file.pageId, segment_line_file_id)
-
-            # update METS (add the PAGE file):
-            file_path = join(self.output_file_grp, file_id + '.xml')
-            pcgts.set_pcGtsId(file_id)
-            out = self.workspace.add_file(
-                ID=file_id,
-                file_grp=self.output_file_grp,
-                pageId=input_file.pageId,
-                local_filename=file_path,
-                mimetype=MIMETYPE_PAGE,
-                content=to_xml(pcgts))
-            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
-                     file_id, self.output_file_grp, out.local_filename)
 
     def process_segment(self, segment, segment_mask, segment_polygon, neighbours,
                         background_image, parent_image, parent_coords, parent_bin,
