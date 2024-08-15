@@ -115,18 +115,17 @@ class OcropyRecognize(Processor):
                 self.parameter['model'], self.parameter['model'])
         exit(1)
 
-    # TODO: Adapt the docstring comment to process_page_pcgts
     def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
-        """Recognize lines / words / glyphs of the workspace.
+        """Recognize lines / words / glyphs of a page.
 
-        Open and deserialise each PAGE input file and its respective image,
+        Open and deserialize the PAGE input file and its respective image,
         then iterate over the element hierarchy down to the requested
         ``textequiv_level``. If any layout annotation below the line level
         already exists, then remove it (regardless of ``textequiv_level``).
 
-        Set up Ocropy to recognise each text line (via coordinates into
+        Set up Ocropy to recognize each text line (via coordinates into
         the higher-level image, or from the alternative image; the image
-        must have been binarised/grayscale-normalised, deskewed and dewarped
+        must have been binarized/grayscale-normalised, deskewed and dewarped
         already). Rescale and pad the image, then recognize.
 
         Create new elements below the line level, if necessary.
@@ -139,11 +138,11 @@ class OcropyRecognize(Processor):
         Levenshtein distance. Aggregate these scores for each file and print
         the line-wise and the total character error rates (CER).
 
-        Produce a new output file by serialising the resulting hierarchy.
+        Return the resulting OcrdPage.
         """
-        maxlevel = self.parameter['textequiv_level']
+        max_level = self.parameter['textequiv_level']
         assert self.workspace
-        self.logger.debug(f'Max level: "{maxlevel}"')
+        self.logger.debug(f'Max level: "{max_level}"')
 
         pcgts = input_pcgts[0]
         page = pcgts.get_Page()
@@ -155,7 +154,7 @@ class OcropyRecognize(Processor):
         regions = page.get_AllRegions(classes=['Text'])
         if not regions:
             self.logger.warning(f"Page '{page_id}' contains no text regions")
-        self.process_regions(regions, maxlevel, page_image, page_coords)
+        self.process_regions(regions, max_level, page_image, page_coords)
         return [pcgts]
 
     def process_regions(self, regions, maxlevel, page_image, page_coords):

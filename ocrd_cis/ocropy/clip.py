@@ -39,9 +39,9 @@ class OcropyClip(Processor):
 
     # TODO: Adapt the docstring comment to process_page_pcgts
     def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
-        """Clip text regions / lines of the workspace at intersections with neighbours.
+        """Clip text regions / lines of a page at intersections with neighbours.
 
-        Open and deserialise PAGE input files and their respective images,
+        Open and deserialize PAGE input file and its respective image,
         then iterate over the element hierarchy down to the requested
         ``level-of-operation``.
 
@@ -61,7 +61,7 @@ class OcropyClip(Processor):
 
         Reference each new image in the AlternativeImage of the element.
 
-        Produce a new output file by serialising the resulting hierarchy.
+        Return the resulting OcrdPage.
         """
         # This makes best sense for overlapping segmentation, like current GT
         # or Tesseract layout analysis. Most notably, it can suppress graphics
@@ -71,7 +71,7 @@ class OcropyClip(Processor):
         # connected component analysis after implicit binarization could be
         # suboptimal, and the explicit binarization after clipping could be,
         # too. However, region-level clipping _must_ be run before region-level
-        # deskewing, because that would make segments incomensurable with their
+        # deskewing, because that would make segments incommensurable with their
         # neighbours.
         level = self.parameter['level-of-operation']
         assert self.workspace
