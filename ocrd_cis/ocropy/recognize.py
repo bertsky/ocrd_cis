@@ -101,18 +101,19 @@ class OcropyRecognize(Processor):
         returns it.  If not, it checks if the model can be found in the
         dirname(__file__)/models/ directory."""
         canread = lambda p: isfile(p) and access(p, R_OK)
+        p_model = self.parameter['model']
         try:
-            model = self.resolve_resource(self.parameter['model'])
+            model = self.resolve_resource(p_model)
             if canread(model):
                 return model
         except SystemExit:
             ocropydir = dirname(abspath(__file__))
-            path = join(ocropydir, 'models', self.parameter['model'])
-            self.logger.info("Failed to resolve model with OCR-D/core mechanism, trying %s", path)
+            path = join(ocropydir, 'models', p_model)
+            self.logger.info(f"Failed to resolve model with OCR-D/core mechanism, trying {path}")
             if canread(path):
                 return path
-        self.logger.error("Could not find model %s. Try 'ocrd resmgr download ocrd-cis-ocropy-recognize %s",
-                self.parameter['model'], self.parameter['model'])
+        self.logger.error(
+            f"Could not find model {p_model}. Try 'ocrd resmgr download ocrd-cis-ocropy-recognize {p_model}")
         exit(1)
 
     def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
@@ -148,7 +149,7 @@ class OcropyRecognize(Processor):
         page = pcgts.get_Page()
         assert page
 
-        page_image, page_coords, _ = self.workspace.image_from_page(page, page_id)
+        page_image, page_xywh, _ = self.workspace.image_from_page(page, page_id)
         self.logger.info(f"Recognizing text in page '{page_id}'")
         # region, line, word, or glyph level:
         regions = page.get_AllRegions(classes=['Text'])
@@ -157,37 +158,32 @@ class OcropyRecognize(Processor):
         self.process_regions(regions, max_level, page_image, page_coords)
         return [pcgts]
 
-    def process_regions(self, regions, maxlevel, page_image, page_coords):
+    def process_regions(self, regions, maxlevel, page_image, page_xywh):
         edits = 0
         lengs = 0
         for region in regions:
-            region_image, region_coords = self.workspace.image_from_segment(
-                region, page_image, page_coords)
-
-            self.logger.info("Recognizing text in region '%s'", region.id)
+            region_image, region_xywh = self.workspace.image_from_segment(region, page_image, page_xywh)
+            self.logger.info(f"Recognizing text in region '{region.id}'")
             textlines = region.get_TextLine()
             if not textlines:
-                self.logger.warning("Region '%s' contains no text lines", region.id)
+                self.logger.warning(f"Region '{region.id}' contains no text lines")
             else:
-                edits_, lengs_ = self.process_lines(textlines, maxlevel, region_image, region_coords)
+                edits_, lengs_ = self.process_lines(textlines, maxlevel, region_image, region_xywh)
                 edits += edits_
                 lengs += lengs_
             # update region text by concatenation for consistency
-            region_unicode = u'\n'.join(line.get_TextEquiv()[0].Unicode
-                                        if line.get_TextEquiv()
-                                        else u'' for line in textlines)
+            region_unicode = u'\n'.join(
+                line.get_TextEquiv()[0].Unicode if line.get_TextEquiv() else u'' for line in textlines)
             region.set_TextEquiv([TextEquivType(Unicode=region_unicode)])
         if lengs > 0:
             self.logger.info('CER: %.1f%%', 100.0 * edits / lengs)
 
-    def process_lines(self, textlines, maxlevel, region_image, region_coords):
+    def process_lines(self, textlines, maxlevel, region_image, region_xywh):
         edits = 0
         lengs = 0
         for line in textlines:
-            line_image, line_coords = self.workspace.image_from_segment(
-                line, region_image, region_coords)
-
-            self.logger.info("Recognizing text in line '%s'", line.id)
+            line_image, line_coords = self.workspace.image_from_segment(line, region_image, region_xywh)
+            self.logger.info(f"Recognizing text in line '{line.id}'")
             if line.get_TextEquiv():
                 linegt = line.TextEquiv[0].Unicode
             else:
@@ -198,19 +194,18 @@ class OcropyRecognize(Processor):
             line.set_Word([])
 
             if line_image.size[1] < 16:
-                self.logger.debug("ERROR: bounding box is too narrow at line %s", line.id)
+                self.logger.debug(f"ERROR: bounding box is too narrow at line {line.id}")
                 continue
             # resize image to 48 pixel height
             final_img, scale = resize_keep_ratio(line_image)
 
             # process ocropy:
             try:
-                linepred, clist, rlist, confidlist = recognize(
-                    final_img, self.pad, self.network, check=True)
+                linepred, clist, rlist, confidlist = recognize(final_img, self.pad, self.network, check=True)
             except Exception as err:
-                self.logger.debug('error processing line "%s": %s', line.id, err)
+                self.logger.debug(f'error processing line "{line.id}": {err}')
                 continue
-            self.logger.debug("OCR '%s': '%s'", line.id, linepred)
+            self.logger.debug(f"OCR '{line.id}': '{linepred}'")
             edits += Levenshtein.distance(linepred, linegt)
             lengs += len(linegt)
 
@@ -226,11 +221,9 @@ class OcropyRecognize(Processor):
                         found_char = True
                         word_conf_list[w_no].append(confidlist[i])
                         word_r_list[w_no].append(rlist[i])
-
                     if c == ' ' and found_char:
                         if i == 0:
                             word_r_list[0][0] = rlist[i]
-
                         elif i+1 <= len(clist)-1 and clist[i+1] != ' ':
                             word_conf_list.append([])
                             word_r_list.append([rlist[i]])
@@ -244,8 +237,7 @@ class OcropyRecognize(Processor):
             # conf for the line
             line_conf = (min(wordsconf) + max(wordsconf))/2
             # line text
-            line.add_TextEquiv(TextEquivType(
-                Unicode=linepred, conf=line_conf))
+            line.add_TextEquiv(TextEquivType(Unicode=linepred, conf=line_conf))
 
             if maxlevel in ['word', 'glyph']:
                 for word_no, word_str in enumerate(words):

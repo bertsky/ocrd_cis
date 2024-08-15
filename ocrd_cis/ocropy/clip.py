@@ -37,7 +37,6 @@ class OcropyClip(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropyClip')
 
-    # TODO: Adapt the docstring comment to process_page_pcgts
     def process_page_pcgts(self, *input_pcgts, output_file_id: str = None, page_id: str = None) -> OcrdPage:
         """Clip text regions / lines of a page at intersections with neighbours.
 
@@ -81,9 +80,9 @@ class OcropyClip(Processor):
         page = pcgts.get_Page()
         assert page
 
-        page_image, page_coords, page_image_info = self.workspace.image_from_page(
+        page_image, page_xywh, page_image_info = self.workspace.image_from_page(
             page, page_id, feature_selector='binarized')
-        # TODO: zoom is not used anywhere, is it still useful to have this call here?
+        # The zoom is not used anywhere
         zoom = determine_zoom(self.logger, self.parameter['dpi'], page_image_info)
         ret = [pcgts]
 
@@ -104,7 +103,7 @@ class OcropyClip(Processor):
                 page.get_TableRegion() +
                 page.get_UnknownRegion())
         if not num_texts:
-            self.logger.warning('Page "%s" contains no text regions', page_id)
+            self.logger.warning(f'Page "{page_id}" contains no text regions')
         background = ImageStat.Stat(page_image)
         # workaround for Pillow#4925
         if len(background.bands) > 1:
@@ -118,7 +117,7 @@ class OcropyClip(Processor):
             # in absolute coordinates merely for comparison/intersection
             shapes = [Polygon(polygon_from_points(region.get_Coords().points)) for region in regions]
             # in relative coordinates for mask/cropping
-            polygons = [coordinates_of_segment(region, page_image, page_coords) for region in regions]
+            polygons = [coordinates_of_segment(region, page_image, page_xywh) for region in regions]
             for i, polygon in enumerate(polygons[num_texts:], num_texts):
                 # for non-text regions, extend mask by 3 pixels in each direction
                 # to ensure they do not leak components accidentally
@@ -143,7 +142,7 @@ class OcropyClip(Processor):
                     segment_region_file_id = f"{output_file_id}_{region.id}"
                     ret.append(self.process_segment(
                         region, masks[i], polygons[i], neighbours, background_image,
-                        page_image, page_coords, page_bin, page_id, segment_region_file_id))
+                        page_image, page_xywh, page_bin, page_id, segment_region_file_id))
                 continue
             # level == 'line':
             lines = region.get_TextLine()
@@ -151,7 +150,7 @@ class OcropyClip(Processor):
                 self.logger.warning(f'Page "{page_id}" region "{region.id}" contains no text lines')
                 continue
             region_image, region_coords = self.workspace.image_from_segment(
-                region, page_image, page_coords, feature_selector='binarized')
+                region, page_image, page_xywh, feature_selector='binarized')
             background_image = Image.new(region_image.mode, region_image.size, background)
             region_array = pil2array(region_image)
             region_bin = np.array(region_array <= midrange(region_array), np.uint8)
@@ -164,8 +163,7 @@ class OcropyClip(Processor):
                 if line.get_AlternativeImage():
                     # FIXME: This should probably be an exception (bad workflow configuration).
                     self.logger.warning(
-                        f'Page "{page_id}" region "{region.id}" line "{line.id}" already contains image '
-                        f'data: skipping')
+                        f'Page "{page_id}" region "{region.id}" line "{line.id}" already contains image data: skipping')
                     continue
                 shape = prep(shapes[j])
                 neighbours = [(linej, maskj) for shapej, linej, maskj
