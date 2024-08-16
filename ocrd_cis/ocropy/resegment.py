@@ -427,7 +427,7 @@ def spread_dist(
             continue
         covers = np.count_nonzero(new_label) / count
         if covers < threshold / 3:
-            logger.debug(f"new line for '%s' only covers %.1f%% bg", covers * 100)
+            logger.debug(f"new line for '{line.id}' only covers %.1f%% bg", covers * 100)
             continue
         count = np.count_nonzero(old_label * binarized)
         if not count:
