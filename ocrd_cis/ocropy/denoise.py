@@ -19,7 +19,7 @@ class OcropyDenoise(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropyDenoise')
 
-    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Despeckle the pages / regions / lines of the workspace.
 
         Open and deserialise PAGE input file and its respective images,
@@ -72,8 +72,7 @@ class OcropyDenoise(Processor):
                     self.logger.warning(f'Page "{page_id}" region "{region.id}" contains no text lines')
                 for line in lines:
                     line_image, line_xywh = self.workspace.image_from_segment(
-                        line, region_image, region_xywh,
-                        feature_selector='binarized')
+                        line, region_image, region_xywh, feature_selector='binarized')
                     image = self.process_segment(line, line_image, line_xywh, zoom)
                     if image:
                         result.images.append(image)
@@ -83,8 +82,8 @@ class OcropyDenoise(Processor):
             self.logger.warning(f"Skipping '{segment.id}' with zero size")
             return None
         self.logger.info(f"About to despeckle '{segment.id}'")
-        bin_image = remove_noise(segment_image,
-                                 maxsize=self.parameter['noise_maxsize']/zoom*300/72) # in pt
+        bin_image = remove_noise(
+            segment_image, maxsize=self.parameter['noise_maxsize'] / zoom * 300 / 72)  # in pt
         # update PAGE (reference the image file):
         alt_image = AlternativeImageType(comments=segment_xywh['features'] + ',despeckled')
         segment.add_AlternativeImage(alt_image)

@@ -52,7 +52,7 @@ class OcropyResegment(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropyResegment')
 
-    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Resegment lines of the workspace.
 
         Open and deserialise PAGE input file and its respective images,

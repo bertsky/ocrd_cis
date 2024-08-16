@@ -47,7 +47,7 @@ def recognize(image, pad, network, check=True):
 
     # getting confidence
     result = lstm.translate_back(network.outputs, pos=1)
-    scale = len(raw_line.T)*1.0/(len(network.outputs)-2*pad)
+    scale = len(raw_line.T) * 1.0 / (len(network.outputs) - 2 * pad)
 
     clist = []
     rlist = []
@@ -57,7 +57,7 @@ def recognize(image, pad, network, check=True):
         if c != 0:
             confid = network.outputs[r, c]
             c = network.l2s([c])
-            r = (r-pad)*scale
+            r = (r - pad) * scale
 
             confidlist.append(confid)
             clist.append(c)
@@ -88,7 +88,7 @@ class OcropyRecognize(Processor):
 
     def get_model(self):
         """Search for the model file.  First checks if parameter['model'] can
-        be resolved with OcrdResourceManager to a valid readeable file and
+        be resolved with OcrdResourceManager to a valid readable file and
         returns it.  If not, it checks if the model can be found in the
         dirname(__file__)/models/ directory."""
         canread = lambda p: isfile(p) and access(p, R_OK)
@@ -202,8 +202,8 @@ class OcropyRecognize(Processor):
 
             words = [x.strip() for x in linepred.split(' ') if x.strip()]
 
-            word_r_list = [[0]] # r-positions of every glyph in every word
-            word_conf_list = [[]] # confidences of every glyph in every word
+            word_r_list = [[0]]  # r-positions of every glyph in every word
+            word_conf_list = [[]]  # confidences of every glyph in every word
             if words != []:
                 w_no = 0
                 found_char = False
@@ -215,7 +215,7 @@ class OcropyRecognize(Processor):
                     if c == ' ' and found_char:
                         if i == 0:
                             word_r_list[0][0] = rlist[i]
-                        elif i+1 <= len(clist)-1 and clist[i+1] != ' ':
+                        elif i + 1 <= len(clist) - 1 and clist[i + 1] != ' ':
                             word_conf_list.append([])
                             word_r_list.append([rlist[i]])
                             w_no += 1
@@ -224,9 +224,9 @@ class OcropyRecognize(Processor):
                 word_r_list = [[0, line_image.width]]
 
             # conf for each word
-            wordsconf = [(min(x)+max(x))/2 for x in word_conf_list]
+            wordsconf = [(min(x) + max(x)) / 2 for x in word_conf_list]
             # conf for the line
-            line_conf = (min(wordsconf) + max(wordsconf))/2
+            line_conf = (min(wordsconf) + max(wordsconf)) / 2
             # line text
             line.add_TextEquiv(TextEquivType(Unicode=linepred, conf=line_conf))
 
@@ -235,32 +235,27 @@ class OcropyRecognize(Processor):
                     word_points = points_from_polygon(
                         coordinates_for_segment(
                             np.array(polygon_from_bbox(
-                                word_r_list[word_no][0] / scale,
-                                0,
-                                word_r_list[word_no][-1] / scale,
-                                0 + line_image.height)),
+                                word_r_list[word_no][0] / scale,0,
+                                word_r_list[word_no][-1] / scale, 0 + line_image.height)),
                             line_image,
                             line_coords))
                     word_id = '%s_word%04d' % (line.id, word_no)
                     word = WordType(id=word_id, Coords=CoordsType(word_points))
                     line.add_Word(word)
-                    word.add_TextEquiv(TextEquivType(
-                        Unicode=word_str, conf=wordsconf[word_no]))
+                    word.add_TextEquiv(TextEquivType(Unicode=word_str, conf=wordsconf[word_no]))
 
                     if maxlevel == 'glyph':
                         for glyph_no, glyph_str in enumerate(word_str):
                             glyph_points = points_from_polygon(
                                 coordinates_for_segment(
                                     np.array(polygon_from_bbox(
-                                        word_r_list[word_no][glyph_no] / scale,
-                                        0,
-                                        word_r_list[word_no][glyph_no+1] / scale,
-                                        0 + line_image.height)),
+                                        word_r_list[word_no][glyph_no] / scale, 0,
+                                        word_r_list[word_no][glyph_no + 1] / scale, 0 + line_image.height)),
                                     line_image,
                                     line_coords))
                             glyph_id = '%s_glyph%04d' % (word.id, glyph_no)
                             glyph = GlyphType(id=glyph_id, Coords=CoordsType(glyph_points))
                             word.add_Glyph(glyph)
-                            glyph.add_TextEquiv(TextEquivType(
-                                Unicode=glyph_str, conf=word_conf_list[word_no][glyph_no]))
+                            glyph.add_TextEquiv(
+                                TextEquivType(Unicode=glyph_str, conf=word_conf_list[word_no][glyph_no]))
         return edits, lengs

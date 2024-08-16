@@ -252,7 +252,7 @@ class OcropySegment(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropySegment')
 
-    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Segment pages into regions+lines, tables into cells+lines, or regions into lines.
         
         Open and deserialise PAGE input file and its respective images,

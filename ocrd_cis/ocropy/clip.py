@@ -124,16 +124,17 @@ class OcropyClip(Processor):
             masks = [pil2array(polygon_mask(page_image, polygon)).astype(np.uint8) for polygon in polygons]
         for i, region in enumerate(regions):
             if i >= num_texts:
-                break # keep non-text regions unchanged
+                break  # keep non-text regions unchanged
             if level == 'region':
                 if region.get_AlternativeImage():
                     # FIXME: This should probably be an exception (bad workflow configuration).
                     self.logger.warning(f'Page "{page_id}" region "{region.id}" already contains image data: skipping')
                     continue
                 shape = prep(shapes[i])
-                neighbours = [(regionj, maskj) for shapej, regionj, maskj
-                              in zip(shapes[:i] + shapes[i+1:], regions[:i] + regions[i+1:], masks[:i] + masks[i+1:])
-                              if shape.intersects(shapej)]
+                neighbours = [
+                    (regionj, maskj) for shapej, regionj, maskj in
+                    zip(shapes[:i] + shapes[i + 1:], regions[:i] + regions[i + 1:], masks[:i] + masks[i + 1:])
+                    if shape.intersects(shapej)]
                 if neighbours:
                     ret.images.append(self.process_segment(
                         region, masks[i], polygons[i], neighbours, background_image,
@@ -161,24 +162,25 @@ class OcropyClip(Processor):
                         f'Page "{page_id}" region "{region.id}" line "{line.id}" already contains image data: skipping')
                     continue
                 shape = prep(shapes[j])
-                neighbours = [(linej, maskj) for shapej, linej, maskj
-                              in zip(shapes[:j] + shapes[j+1:], lines[:j] + lines[j+1:], masks[:j] + masks[j+1:])
-                              if shape.intersects(shapej)]
+                neighbours = [
+                    (linej, maskj) for shapej, linej, maskj in
+                    zip(shapes[:j] + shapes[j + 1:], lines[:j] + lines[j + 1:], masks[:j] + masks[j + 1:])
+                    if shape.intersects(shapej)]
                 if neighbours:
                     ret.images.append(self.process_segment(
                         line, masks[j], polygons[j], neighbours, background_image,
                         region_image, region_coords, region_bin, page_id))
         return ret
 
-    def process_segment(self, segment, segment_mask, segment_polygon, neighbours,
-                        background_image, parent_image, parent_coords, parent_bin,
-                        page_id) -> OcrdPageResultImage:
+    def process_segment(
+            self, segment, segment_mask, segment_polygon, neighbours, background_image, parent_image, parent_coords,
+            parent_bin, page_id
+    ) -> OcrdPageResultImage:
         # initialize AlternativeImage@comments classes from parent, except
         # for those operations that can apply on multiple hierarchy levels:
         features = ','.join(
             [feature for feature in parent_coords['features'].split(',')
-             if feature in ['binarized', 'grayscale_normalized',
-                            'despeckled', 'dewarped']]) + ',clipped'
+             if feature in ['binarized', 'grayscale_normalized', 'despeckled', 'dewarped']]) + ',clipped'
         # mask segment within parent image:
         segment_image = image_from_polygon(parent_image, segment_polygon)
         segment_bbox = bbox_from_polygon(segment_polygon)
@@ -188,8 +190,8 @@ class OcropyClip(Processor):
                     f'Ignoring enclosing neighbour "{neighbour.id}" of segment "{segment.id}" on page "{page_id}"')
                 continue
             # find connected components that (only) belong to the neighbour:
-            intruders = segment_mask * morph.keep_marked(parent_bin, neighbour_mask > 0) # overlaps neighbour
-            intruders = morph.remove_marked(intruders, segment_mask > neighbour_mask) # but exclusively
+            intruders = segment_mask * morph.keep_marked(parent_bin, neighbour_mask > 0)  # overlaps neighbour
+            intruders = morph.remove_marked(intruders, segment_mask > neighbour_mask)  # but exclusively
             num_intruders = np.count_nonzero(intruders)
             num_foreground = np.count_nonzero(segment_mask * parent_bin)
             if not num_intruders:
@@ -202,14 +204,14 @@ class OcropyClip(Processor):
             segment_mask -= intruders
             # suppress in derived image result to be annotated
             clip_mask = array2pil(intruders)
-            segment_image.paste(background_image, mask=clip_mask) # suppress in raw image
+            segment_image.paste(background_image, mask=clip_mask)  # suppress in raw image
             if segment_image.mode in ['RGB', 'L', 'RGBA', 'LA']:
                 # for consumers that do not have to rely on our
                 # guessed background color, but can cope with transparency:
                 segment_image.putalpha(ImageOps.invert(clip_mask))
         # recrop segment into rectangle, just as image_from_segment would do
         # (and also clipping with background colour):
-        segment_image = crop_image(segment_image,box=segment_bbox)
+        segment_image = crop_image(segment_image, box=segment_bbox)
         # update PAGE (reference the image file):
         alternative_image = AlternativeImageType(comments=features)
         segment.add_AlternativeImage(alternative_image)

@@ -22,27 +22,27 @@ def dewarp(image, lnorm, check=True, max_neighbour=0.02, zoom=1.0):
     if not image.width or not image.height:
         raise InvalidLine('image size is zero')
     line = pil2array(image)
-    
+
     if np.prod(line.shape) == 0:
         raise InvalidLine('image dimensions are zero')
     if np.amax(line) == np.amin(line):
         raise InvalidLine('image is blank')
-    
-    temp = np.amax(line)-line # inverse, zero-closed
+
+    temp = np.amax(line) - line  # inverse, zero-closed
     if check:
         report = check_line(temp, zoom=zoom)
         if report:
             raise InadequateLine(report)
-    
-    temp = temp * 1.0 / np.amax(temp) # normalized
+
+    temp = temp * 1.0 / np.amax(temp)  # normalized
     if check:
         report = lnorm.check(temp, max_ignore=max_neighbour)
         if report:
             raise InvalidLine(report)
 
-    lnorm.measure(temp) # find centerline
+    lnorm.measure(temp)  # find centerline
     line = lnorm.dewarp(line, cval=np.amax(line))
-    
+
     return array2pil(line)
 
 # pad with white above and below (as a fallback for dewarp)
@@ -72,7 +72,7 @@ class OcropyDewarp(Processor):
                     #  and extra params)
                     0.3))
 
-    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Dewarp the lines of the workspace.
 
         Open and deserialise PAGE input file and its respective images,
@@ -115,9 +115,8 @@ class OcropyDewarp(Processor):
 
                 self.logger.info(f"About to dewarp page '{page_id}' region '{region.id}' line '{line.id}'")
                 try:
-                    dew_image = dewarp(line_image, self.lnorm, check=True,
-                                       max_neighbour=self.parameter['max_neighbour'],
-                                       zoom=zoom)
+                    dew_image = dewarp(
+                        line_image, self.lnorm, check=True, max_neighbour=self.parameter['max_neighbour'], zoom=zoom)
                 except InvalidLine as err:
                     self.logger.error(f'Cannot dewarp line "{line.id}": {err}')
                     continue

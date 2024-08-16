@@ -38,14 +38,14 @@ def binarize(logger: Logger, pil_image, method='ocropy', maxskew=2, threshold=0.
 
         if method == 'global':
             # global thresholding
-            _, th = cv2.threshold(img,threshold*255,255,cv2.THRESH_BINARY)
+            _, th = cv2.threshold(img, threshold * 255, 255, cv2.THRESH_BINARY)
         elif method == 'otsu':
             # Otsu's thresholding
-            _, th = cv2.threshold(img,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+            _, th = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         elif method == 'gauss-otsu':
             # Otsu's thresholding after Gaussian filtering
             blur = cv2.GaussianBlur(img, (5, 5), 0)
-            _, th = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+            _, th = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         else:
             raise Exception('unknown binarization method %s' % method)
         return Image.fromarray(th), 0
@@ -95,7 +95,8 @@ class OcropyBinarize(Processor):
         page = pcgts.get_Page()
         assert page
 
-        page_image, page_xywh, page_image_info = self.workspace.image_from_page(page, page_id, feature_filter='binarized')
+        page_image, page_xywh, page_image_info = self.workspace.image_from_page(
+            page, page_id, feature_filter='binarized')
         zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
         result = OcrdPageResult(pcgts)
@@ -162,7 +163,7 @@ class OcropyBinarize(Processor):
         # to do consistent coordinate transforms, and non-consumers
         # to redo the rotation themselves):
         orientation = -page_xywh['angle']
-        orientation = 180 - (180 - orientation) % 360 # map to [-179.999,180]
+        orientation = 180 - (180 - orientation) % 360  # map to [-179.999,180]
         page.set_orientation(orientation)
         if self.parameter['grayscale']:
             suffix = '.IMG-NRM'

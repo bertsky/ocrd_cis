@@ -25,7 +25,7 @@ class OcropyDeskew(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropyDeskew')
 
-    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Deskew the pages or regions of the workspace.
 
         Open and deserialise PAGE input file and its respective images,
@@ -61,7 +61,7 @@ class OcropyDeskew(Processor):
             return result
         if level == 'table':
             regions = page.get_TableRegion()
-        else: # region
+        else:  # region
             regions = page.get_AllRegions(classes=['Text'], order='reading-order')
         if not regions:
             self.logger.warning('Page "%s" contains no text regions', page_id)
@@ -78,29 +78,29 @@ class OcropyDeskew(Processor):
                 result.images.append(image)
         return result
 
-    def _process_segment(self, segment, segment_image, segment_coords, segment_id, page_id) -> Optional[OcrdPageResultImage]:
+    def _process_segment(
+            self, segment, segment_image, segment_coords, segment_id, page_id
+    ) -> Optional[OcrdPageResultImage]:
         if not segment_image.width or not segment_image.height:
             self.logger.warning("Skipping %s with zero size", segment_id)
             return None
-        angle0 = segment_coords['angle'] # deskewing (w.r.t. top image) already applied to segment_image
+        angle0 = segment_coords['angle']  # deskewing (w.r.t. top image) already applied to segment_image
         self.logger.info(f"About to deskew {segment_id}")
-        angle = deskew(segment_image, maxskew=self.parameter['maxskew']) # additional angle to be applied
+        angle = deskew(segment_image, maxskew=self.parameter['maxskew'])  # additional angle to be applied
         # segment angle: PAGE orientation is defined clockwise,
         # whereas PIL/ndimage rotation is in mathematical direction:
         orientation = -(angle + angle0)
-        orientation = 180 - (180 - orientation) % 360 # map to [-179.999,180]
-        segment.set_orientation(orientation) # also removes all deskewed AlternativeImages
+        orientation = 180 - (180 - orientation) % 360  # map to [-179.999,180]
+        segment.set_orientation(orientation)  # also removes all deskewed AlternativeImages
         self.logger.info(f"Found angle for {segment_id}: %.1f", angle)
         # delegate reflection, rotation and re-cropping to core:
         if isinstance(segment, PageType):
             segment_image, segment_coords, _ = self.workspace.image_from_page(
-                segment, page_id,
-                fill='background', transparency=True)
+                segment, page_id, fill='background', transparency=True)
             suffix = '.IMG-DESKEW'
         else:
             segment_image, segment_coords = self.workspace.image_from_segment(
-                segment, segment_image, segment_coords,
-                fill='background', transparency=True)
+                segment, segment_image, segment_coords, fill='background', transparency=True)
             suffix = segment.id + '.IMG-DESKEW'
         if not angle:
             # zero rotation does not change coordinates,
