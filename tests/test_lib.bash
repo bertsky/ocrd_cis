@@ -5,7 +5,7 @@ trap "trap 'echo exiting without removing $tmpdir' EXIT" ERR
 trap "rm -rf $tmpdir" EXIT
 
 OCRD_CIS_FILEGRP="OCR-D-GT-SEG-LINE"
-data_url="https://github.com/OCR-D/gt_structure_text/releases/download/v1.2.4/"
+data_url="https://github.com/OCR-D/gt_structure_text/releases/download/v1.5.0/"
 function ocrd_cis_download_bagit() {
 	local url="$data_url/$1"
 	mkdir -p "$PWD/download"
