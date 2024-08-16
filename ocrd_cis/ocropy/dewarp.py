@@ -1,18 +1,12 @@
 from __future__ import absolute_import
-
-from typing import Optional
 from logging import Logger
-from os.path import join
-
+from typing import Optional
 import numpy as np
 
-from ocrd_utils import getLogger
-from ocrd_models.ocrd_page import (
-    AlternativeImageType,
-    OcrdPage
-)
 from ocrd import Processor
 from ocrd.processor import OcrdPageResult, OcrdPageResultImage
+from ocrd_utils import getLogger
+from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
 
 from .ocrolib import lineest
 from .common import array2pil, check_line, determine_zoom, pil2array

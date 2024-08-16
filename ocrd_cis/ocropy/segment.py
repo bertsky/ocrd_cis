@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 from typing import Optional
 from logging import Logger
-from os.path import join
 import itertools
 
 import numpy as np

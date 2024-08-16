@@ -1,14 +1,10 @@
 from __future__ import absolute_import
 from logging import Logger
+from typing import Optional
 
 import cv2
 import numpy as np
 from PIL import Image
-from os.path import abspath, dirname, join
-
-from typing import Union, Optional
-
-#import kraken.binarization
 
 from ocrd_utils import getLogger
 from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage

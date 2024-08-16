@@ -10,16 +10,8 @@ from PIL import Image
 
 from rapidfuzz.distance import Levenshtein
 
-from ocrd_utils import (
-    getLogger,
-    coordinates_for_segment,
-    polygon_from_bbox,
-    points_from_polygon,
-)
-from ocrd_models.ocrd_page import (
-    TextEquivType, OcrdPage,
-    CoordsType, GlyphType, WordType
-)
+from ocrd_utils import coordinates_for_segment, getLogger, points_from_polygon, polygon_from_bbox
+from ocrd_models.ocrd_page import CoordsType, GlyphType, OcrdPage, TextEquivType, WordType
 from ocrd import Processor
 from ocrd.processor import OcrdPageResult
 

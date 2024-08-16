@@ -1,15 +1,9 @@
 from __future__ import absolute_import
-
 from typing import Optional
 from logging import Logger
-from os.path import join
 
 from ocrd_utils import getLogger
-from ocrd_models.ocrd_page import (
-    PageType,
-    AlternativeImageType,
-    OcrdPage
-)
+from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage, PageType
 from ocrd import Processor
 from ocrd.processor import OcrdPageResult, OcrdPageResultImage
 

@@ -2,7 +2,6 @@ from __future__ import absolute_import
 from logging import Logger
 from typing import Optional
 
-from os.path import join
 import numpy as np
 from PIL import Image, ImageStat, ImageOps
 from shapely.geometry import Polygon
@@ -12,19 +11,18 @@ from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
 from ocrd import Processor
 from ocrd.processor import OcrdPageResult, OcrdPageResultImage
 from ocrd_utils import (
-    getLogger,
-    coordinates_of_segment,
-    polygon_from_points,
     bbox_from_polygon,
-    image_from_polygon,
-    polygon_mask,
+    coordinates_of_segment,
     crop_image,
+    getLogger,
+    image_from_polygon,
+    polygon_from_points,
+    polygon_mask,
 )
 
+from .common import array2pil, determine_zoom, pil2array
 from .ocrolib import midrange, morph
-from .common import (
-    # binarize,
-    array2pil, determine_zoom, pil2array)
+
 
 class OcropyClip(Processor):
     logger: Logger

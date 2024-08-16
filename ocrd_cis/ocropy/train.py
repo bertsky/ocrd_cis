@@ -3,9 +3,8 @@ from __future__ import absolute_import
 from typing import Optional
 from logging import Logger
 from sys import exit
-from os import getcwd, makedirs, remove
+from os import makedirs, remove
 from os.path import abspath, dirname, exists, join, isfile
-import tempfile
 
 from ocrd_models import OcrdPage
 from ocrd import Processor, Workspace
@@ -32,7 +31,9 @@ def resize_keep_ratio(image, baseheight=48):
 
 class OcropyTrain(Processor):
     logger: Logger
+    modelpath: str
     old_cwd: str
+    outputpath: str
 
     @property
     def executable(self):
@@ -75,8 +76,8 @@ class OcropyTrain(Processor):
                          f"on {len(self.filelist)} file pairs")
         rtrain(self.filelist, self.modelpath, self.outputpath, self.parameter['ntrain'])
         # deletefiles(self.filelist)
-        
-    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
+
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """
         Extracts pairs of plaintext and cropped image files for each text line
         in the PAGE file (to be used during training).

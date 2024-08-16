@@ -1,19 +1,13 @@
 from __future__ import absolute_import
-
 from typing import Optional
 from logging import Logger
-from os.path import join
 
 from ocrd_utils import getLogger
-from ocrd_models.ocrd_page import (
-    AlternativeImageType, OcrdPage
-)
+from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
 from ocrd import Processor
 from ocrd.processor import OcrdPageResult, OcrdPageResultImage
 
-from .common import (
-    # binarize,
-    determine_zoom, remove_noise)
+from .common import determine_zoom, remove_noise
 
 class OcropyDenoise(Processor):
     logger: Logger
