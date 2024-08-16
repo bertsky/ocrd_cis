@@ -544,14 +544,14 @@ class OcropySegment(Processor):
             element_name = 'table'
             fullpage = True
             report = check_region(element_bin, zoom)
-            suffix = element.id + '.IMG-CLIP'
+            suffix = f"{element.id}.IMG-CLIP"
         else:
             element_name = 'region'
             fullpage = False
             report = check_region(element_bin, zoom)
-            suffix = element.id + '.IMG-CLIP'
-        self.logger.info(f'Computing line segmentation for {element_name} "{element.id}"')
+            suffix = f"{element.id}.IMG-CLIP"
         element_name_id = f'{element_name} "{element.id}"'
+        self.logger.info(f'Computing line segmentation for {element_name_id}')
         # TODO: we should downscale if DPI is large enough to save time
         try:
             if report:
@@ -571,7 +571,7 @@ class OcropySegment(Processor):
             if isinstance(element, TextRegionType):
                 self.logger.error(f'Cannot line-segment region "{element.id}": {err}')
                 # as a fallback, add a single text line comprising the whole region:
-                element.add_TextLine(TextLineType(id=element.id + "_line", Coords=element.get_Coords()))
+                element.add_TextLine(TextLineType(id=f"{element.id}_line", Coords=element.get_Coords()))
             else:
                 self.logger.error(f'Cannot line-segment {element_name_id}: {err}')
             return None
@@ -664,7 +664,7 @@ class OcropySegment(Processor):
                         continue
                     # annotate result:
                     region_no += 1
-                    region_id = element.id + "_region%04d" % region_no
+                    region_id = f"{element.id}_region%04d" % region_no
                     self.logger.debug(f'Region label {region_label} becomes ID "{region_id}"')
                     region = TextRegionType(id=region_id, Coords=CoordsType(points=points_from_polygon(region_polygon)))
                     # find out which line (contours) belong to which region (contours)
@@ -682,7 +682,7 @@ class OcropySegment(Processor):
                             continue
                         # annotate result:
                         line_no += 1
-                        line_id = region_id + "_line%04d" % line_no
+                        line_id = f"{region_id}_line%04d" % line_no
                         self.logger.debug(f'Line label {line_label} becomes ID "{line_id}"')
                         line = TextLineType(id=line_id, Coords=CoordsType(points=points_from_polygon(line_polygon)))
                         if line_baseline:
@@ -709,7 +709,7 @@ class OcropySegment(Processor):
                     continue
                 region_no += 1
                 # annotate result:
-                region_id = element.id + "_image%04d" % region_no
+                region_id = f"{element.id}_image%04d" % region_no
                 element.add_ImageRegion(ImageRegionType(
                     id=region_id, Coords=CoordsType(points=points_from_polygon(region_polygon))))
             # split detected separator labels into separator regions:
@@ -726,7 +726,7 @@ class OcropySegment(Processor):
                     continue
                 # annotate result:
                 region_no += 1
-                region_id = element.id + "_sep%04d" % region_no
+                region_id = f"{element.id}_sep%04d" % region_no
                 element.add_SeparatorRegion(SeparatorRegionType(
                     id=region_id, Coords=CoordsType(points=points_from_polygon(region_polygon))))
             # annotate a text/image-separated image
@@ -739,8 +739,7 @@ class OcropySegment(Processor):
             # get mask from region polygon:
             region_polygon = coordinates_of_segment(element, image, coords)
             region_mask = np.zeros_like(element_bin, bool)
-            region_mask[draw.polygon(
-                region_polygon[:, 1], region_polygon[:, 0], region_mask.shape)] = True
+            region_mask[draw.polygon(region_polygon[:, 1], region_polygon[:, 0], region_mask.shape)] = True
             # ensure the new line labels do not extrude from the region:
             line_labels = line_labels * region_mask
             # find contours around labels (can be non-contiguous):
@@ -757,7 +756,7 @@ class OcropySegment(Processor):
                     continue
                 # annotate result:
                 line_no += 1
-                line_id = element.id + "_line%04d" % line_no
+                line_id = f"{element.id}_line%04d" % line_no
                 line = TextLineType(id=line_id, Coords=CoordsType(points=points_from_polygon(line_polygon)))
                 if baseline:
                     line_baseline = coordinates_for_segment(baseline, image, coords)
@@ -868,11 +867,12 @@ def join_polygons(polygons, loc='', scale=20):
         dists[j, i] = dist
     dists = minimum_spanning_tree(dists, overwrite=True)
     # add bridge polygons (where necessary)
+    max_dist = max(1.0, scale / 5)
     for prevp, nextp in zip(*dists.nonzero()):
         prevp = polygons[prevp]
         nextp = polygons[nextp]
         nearest = nearest_points(prevp, nextp)
-        bridgep = LineString(nearest).buffer(max(1, scale/5), resolution=1)
+        bridgep = LineString(nearest).buffer(max_dist, resolution=1)
         polygons.append(bridgep)
     jointp = unary_union(polygons)
     assert jointp.geom_type == 'Polygon', jointp.wkt
@@ -1017,11 +1017,9 @@ def page_add_to_reading_order(rogroup, region_id, index=None):
     """
     if rogroup:
         if index is None:
-            rogroup.add_RegionRef(RegionRefType(
-                regionRef=region_id))
+            rogroup.add_RegionRef(RegionRefType(regionRef=region_id))
         else:
-            rogroup.add_RegionRefIndexed(RegionRefIndexedType(
-                regionRef=region_id, index=index))
+            rogroup.add_RegionRefIndexed(RegionRefIndexedType(regionRef=region_id, index=index))
             index += 1
     return index
 
@@ -1045,36 +1043,30 @@ def page_subgroup_in_reading_order(logger: Logger, roelem):
     if not roelem.parent_object_:
         logger.error('Cannot subgroup from orphan ReadingOrder element')
         return roelem
-    if isinstance(roelem, (OrderedGroupType,OrderedGroupIndexedType)) and not (
+    if isinstance(roelem, (OrderedGroupType, OrderedGroupIndexedType)) and not (
             roelem.get_OrderedGroupIndexed() or
             roelem.get_UnorderedGroupIndexed() or
             roelem.get_RegionRefIndexed()):
         # is already a group and still empty
         return roelem
-    if isinstance(roelem, (OrderedGroupType,
-                           UnorderedGroupType,
-                           RegionRefType)):
+    if isinstance(roelem, (OrderedGroupType, UnorderedGroupType, RegionRefType)):
         getattr(roelem.parent_object_, {
             OrderedGroupType: 'get_OrderedGroup',
             UnorderedGroupType: 'get_UnorderedGroup',
             RegionRefType: 'get_RegionRef',
         }.get(roelem.__class__))().remove(roelem)
-        roelem2 = OrderedGroupType(id=roelem.regionRef + '_group',
-                                   regionRef=roelem.regionRef)
+        roelem2 = OrderedGroupType(id=f"{roelem.regionRef}_group", regionRef=roelem.regionRef)
         roelem.parent_object_.add_OrderedGroup(roelem2)
         roelem2.parent_object_ = roelem.parent_object_
         return roelem2
-    if isinstance(roelem, (OrderedGroupIndexedType,
-                           UnorderedGroupIndexedType,
-                           RegionRefIndexedType)):
+    if isinstance(roelem, (OrderedGroupIndexedType, UnorderedGroupIndexedType, RegionRefIndexedType)):
         getattr(roelem.parent_object_, {
             OrderedGroupIndexedType: 'get_OrderedGroupIndexed',
             UnorderedGroupIndexedType: 'get_UnorderedGroupIndexed',
             RegionRefIndexedType: 'get_RegionRefIndexed'
         }.get(roelem.__class__))().remove(roelem)
-        roelem2 = OrderedGroupIndexedType(id=roelem.regionRef + '_group',
-                                          index=roelem.index,
-                                          regionRef=roelem.regionRef)
+        roelem2 = OrderedGroupIndexedType(
+            id=f"{roelem.regionRef}_group", index=roelem.index, regionRef=roelem.regionRef)
         roelem.parent_object_.add_OrderedGroupIndexed(roelem2)
         roelem2.parent_object_ = roelem.parent_object_
         return roelem2
