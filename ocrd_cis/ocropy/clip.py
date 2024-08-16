@@ -213,6 +213,7 @@ class OcropyClip(Processor):
         # (and also clipping with background colour):
         segment_image = crop_image(segment_image, box=segment_bbox)
         # update PAGE (reference the image file):
+        suffix = f'{segment.id}.IMG_CLIP'
         alternative_image = AlternativeImageType(comments=features)
         segment.add_AlternativeImage(alternative_image)
-        return OcrdPageResultImage(segment_image, '.IMG-CLIP', alternative_image)
+        return OcrdPageResultImage(segment_image, suffix, alternative_image)
