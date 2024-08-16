@@ -76,6 +76,7 @@ class OcropyDenoise(Processor):
                     image = self.process_segment(line, line_image, line_xywh, zoom)
                     if image:
                         result.images.append(image)
+        return result
 
     def process_segment(self, segment, segment_image, segment_xywh, zoom) -> Optional[OcrdPageResultImage]:
         if not segment_image.width or not segment_image.height:
