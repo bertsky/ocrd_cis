@@ -58,7 +58,9 @@ from .common import (
     lines2regions
 )
 
-def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=None, simplify=None, open_holes=False, reorder=True):
+
+def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=None, simplify=None, open_holes=False,
+                   reorder=True):
     """Convert label masks into polygon coordinates.
 
     Given a Numpy array of background labels ``bg_labels``,
@@ -79,6 +81,7 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
     if baselines is not None:
         def getx(xy):
             return xy[0]
+
         baselines = [LineString(sorted([p[::-1] for p in line], key=getx)).simplify(5)
                      for line in baselines
                      if len(line) >= 2]
@@ -96,8 +99,7 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
         # simplify to convex hull
         if simplify is not None:
             hull = convex_hull_image(bg_mask.astype(np.uint8)).astype(bool)
-            conflicts = np.setdiff1d(hull * simplify,
-                                     bg_mask * simplify)
+            conflicts = np.setdiff1d(hull * simplify, bg_mask * simplify)
             if conflicts.any():
                 logger.debug(
                     f'Cannot simplify {label}: convex hull would create additional intersections {str(conflicts)}')
@@ -143,10 +145,10 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
                     contourtics = np.maximum(1, np.linalg.norm(contour2, axis=2).astype(int)[:,0] // 10)
                     interpol = []
                     for i, ntics in enumerate(contourtics):
-                        interpol.extend(np.array(contour[i:i+1] +
-                                                 contour2[i:i+1] *
-                                                 np.linspace(0, 1, ntics)[:,np.newaxis,np.newaxis],
-                                                 int))
+                        interpol.extend(np.array(
+                            contour[i:i + 1] +
+                            contour2[i:i + 1] *
+                            np.linspace(0, 1, ntics)[:, np.newaxis, np.newaxis], int))
                     interpol.append(contour[-1])
                     interpol = np.array(interpol)
                     contourtics = np.insert(np.cumsum(contourtics), 0, 0)
@@ -159,23 +161,24 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
                         contour_idx2 = contour_idx
                     if contour_idx2 >= len(contour):
                         contour_idx2 = 0
-                    cispoint1 = cispoint2 = interpol[interpol_idx:interpol_idx+1]
+                    cispoint1 = cispoint2 = interpol[interpol_idx:interpol_idx + 1]
                     if interpol_idx == 0:
                         diff1 = (interpol[-1:] - cispoint1) // 5
                     else:
-                        diff1 = (interpol[interpol_idx-1:interpol_idx] - cispoint1) // 5
+                        diff1 = (interpol[interpol_idx - 1: interpol_idx] - cispoint1) // 5
                     if interpol_idx + 1 >= len(interpol):
                         diff2 = (interpol[0:1] - cispoint2) // 5
                     else:
-                        diff2 = (interpol[interpol_idx+1:interpol_idx+2] - cispoint2) // 5
+                        diff2 = (interpol[interpol_idx + 1: interpol_idx + 2] - cispoint2) // 5
                     cispoint1 = cispoint1 + diff1
                     cispoint2 = cispoint2 + diff2
                     logger.debug(f"Stitching at interpolation pos {interpol_idx} hole pos {hole_idx}")
                     # now stitch together outer (up to cision), inner (re-arranged around cision), outer (rest)
                     # (this works, because inner contours have inverse direction)
-                    contour = np.concatenate([contour[:contour_idx], cispoint1,
-                                              hole[hole_idx:], hole[:hole_idx],
-                                              cispoint2, contour[contour_idx:]])
+                    contour = np.concatenate(
+                        [contour[:contour_idx], cispoint1,
+                         hole[hole_idx:], hole[:hole_idx],
+                         cispoint2, contour[contour_idx:]])
                     #plot_poly(contour, 'green')
                     idx_hole = hier[0, idx_hole, 0]
                 #plot_poly(contour, 'red')
@@ -210,7 +213,7 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
             # simplify shape:
             # can produce invalid (self-intersecting) polygons:
             #polygon = cv2.approxPolyDP(contour, 2, False)[:, 0, ::] # already ordered x,y
-            polygon = contour[:, 0, ::] # already ordered x,y
+            polygon = contour[:, 0, ::]  # already ordered x,y
             # simplify and validate:
             polygon = Polygon(polygon)
             if not polygon.is_valid:
@@ -220,22 +223,22 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
             if not polygon.is_valid:
                 #LOG.debug(polygon.wkt)
                 logger.warning(explain_validity(polygon))
-            poly = polygon.exterior.coords[:-1] # keep open
+            poly = polygon.exterior.coords[:-1]  # keep open
             if len(poly) < 4:
                 logger.warning(f'Label {label} contour {i} for {name} has less than 4 points')
                 continue
             # get baseline segments intersecting with this line mask
             # and concatenate them from left to right
             if baselines is not None:
-                base = join_baselines(logger, [baseline.intersection(polygon)
-                                       for baseline in baselines
-                                       if baseline.intersects(polygon)], name)
+                base = join_baselines(
+                    logger,
+                    [baseline.intersection(polygon) for baseline in baselines if baseline.intersects(polygon)], name)
                 if base is not None:
                     base = base.coords
             else:
                 base = None
             results.append((label, poly, base))
-            result_labels[contour_labels == i+1] = len(results)
+            result_labels[contour_labels == i + 1] = len(results)
     return results, result_labels
 
 
