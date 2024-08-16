@@ -19,8 +19,8 @@ def deletefiles(filelist):
     for file in filelist:
         if exists(file):
             remove(file)
-        if exists(file[:-3]+'gt.txt'):
-            remove(file[:-3]+'gt.txt')
+        if exists(file[:-3] + 'gt.txt'):
+            remove(file[:-3] + 'gt.txt')
 
 def resize_keep_ratio(image, baseheight=48):
     hpercent = (baseheight / float(image.size[1]))
