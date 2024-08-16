@@ -64,7 +64,7 @@ class OcropyBinarize(Processor):
             self.logger.critical(f'Requested method {method} does not support grayscale normalized output')
             raise ValueError('only method=ocropy allows grayscale=true')
 
-    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: str = None) -> OcrdPageResult:
+    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Binarize (and optionally deskew/despeckle) the pages/regions/lines of the workspace.
 
         Iterate over the PAGE-XML element hierarchy down to the requested
@@ -91,16 +91,17 @@ class OcropyBinarize(Processor):
         self.logger.debug(f'Level of operation: "{level}"')
 
         pcgts = input_pcgts[0]
+        assert pcgts
         page = pcgts.get_Page()
         assert page
 
         page_image, page_xywh, page_image_info = self.workspace.image_from_page(page, page_id, feature_filter='binarized')
         zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
-        ret = OcrdPageResult(pcgts)
+        result = OcrdPageResult(pcgts)
         if level == 'page':
             try:
-                ret.images.append(self.process_page(page, page_image, page_xywh, zoom, page_id))
+                result.images.append(self.process_page(page, page_image, page_xywh, zoom, page_id))
             except ValueError as e:
                 self.logger.error(e)
         else:
@@ -115,7 +116,7 @@ class OcropyBinarize(Processor):
                     region, page_image, page_xywh, feature_filter='binarized')
                 if level == 'region':
                     try:
-                        ret.images.append(self.process_region(region, region_image, region_xywh, zoom, region.id))
+                        result.images.append(self.process_region(region, region_image, region_xywh, zoom, region.id))
                         continue
                     except ValueError as e:
                         self.logger.error(e)
@@ -126,10 +127,10 @@ class OcropyBinarize(Processor):
                     line_image, line_xywh = self.workspace.image_from_segment(
                         line, region_image, region_xywh, feature_filter='binarized')
                     try:
-                        ret.images.append(self.process_line(line, line_image, line_xywh, zoom, page_id, region.id))
+                        result.images.append(self.process_line(line, line_image, line_xywh, zoom, page_id, region.id))
                     except ValueError as e:
                         self.logger.error(e)
-        return ret
+        return result
 
     def process_page(self, page, page_image, page_xywh, zoom, page_id) -> OcrdPageResultImage:
         if not page_image.width or not page_image.height:
@@ -209,7 +210,7 @@ class OcropyBinarize(Processor):
         orientation = -region_xywh['angle']
         orientation = 180 - (180 - orientation) % 360 # map to [-179.999,180]
         region.set_orientation(orientation)
-        suffix = region.id
+        suffix = f'{region.id}'
         if self.parameter['grayscale']:
             suffix += '.IMG-NRM'
             features += ',grayscale_normalized'

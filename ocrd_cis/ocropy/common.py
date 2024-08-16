@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from typing import Optional
 
 import warnings
 import logging
@@ -2103,7 +2104,7 @@ def lines2regions(binary, llabels,
     # DSAVE('rlabels_closed', rlabels)
     return rlabels
 
-def determine_zoom(logger: logging.Logger, page_id: str, dpi: float, page_image_info: OcrdExif) -> float:
+def determine_zoom(logger: logging.Logger, page_id: Optional[str], dpi: float, page_image_info: OcrdExif) -> float:
     if dpi > 0:
         zoom = 300.0/dpi
     elif page_image_info.resolution != 1:
