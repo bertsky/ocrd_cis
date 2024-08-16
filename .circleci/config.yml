@@ -10,7 +10,7 @@ jobs:
       - checkout
       - run: apt-get update && apt-get -y install default-jre-headless
       - run: make install
-      - run: make test V=""
+      - run: make -j test V=""
 
   deploy-docker:
     docker:
