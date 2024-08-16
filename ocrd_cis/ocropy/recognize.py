@@ -1,7 +1,8 @@
 from __future__ import absolute_import
+
 from logging import Logger
 from sys import exit
-from typing import Any
+from typing import Any, Optional
 from os import access, R_OK
 from os.path import abspath, dirname, isfile, join
 import numpy as np
