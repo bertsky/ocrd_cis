@@ -95,24 +95,19 @@ class OcropyDewarp(Processor):
         result = OcrdPageResult(pcgts)
         page = pcgts.get_Page()
 
-        page_image, page_xywh, page_image_info = self.workspace.image_from_page(
-            page, page_id)
+        page_image, page_xywh, page_image_info = self.workspace.image_from_page(page, page_id)
         zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
         regions = page.get_AllRegions(classes=['Text'], order='reading-order')
         if not regions:
             self.logger.warning(f'Page "{page_id}" contains no text regions')
         for region in regions:
-            region_image, region_xywh = self.workspace.image_from_segment(
-                region, page_image, page_xywh)
-
+            region_image, region_xywh = self.workspace.image_from_segment(region, page_image, page_xywh)
             lines = region.get_TextLine()
             if not lines:
                 self.logger.warning(f'Region {region.id} contains no text lines')
             for line in lines:
-                line_image, line_xywh = self.workspace.image_from_segment(
-                    line, region_image, region_xywh)
-
+                line_image, line_xywh = self.workspace.image_from_segment(line, region_image, region_xywh)
                 self.logger.info(f"About to dewarp page '{page_id}' region '{region.id}' line '{line.id}'")
                 try:
                     dew_image = dewarp(
