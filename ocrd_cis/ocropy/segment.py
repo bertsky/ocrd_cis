@@ -75,8 +75,6 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
     - these polygons as a list of label, polygon, baseline tuples, and
     - a Numpy array of new background labels for that list.
     """
-    if not logger:
-        raise ValueError(f"Logger has not been passed by the caller")
     # find sharp baseline
     if baselines is not None:
         def getx(xy):
@@ -93,8 +91,7 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
         bg_mask = np.array(bg_labels == label, bool)
         if not np.count_nonzero(bg_mask * fg_bin):
             # ignore if missing foreground
-            logger.debug('skipping label %d in %s due to empty fg',
-                      label, name)
+            logger.debug(f'Skipping label {label} in {name} due to empty fg')
             continue
         # simplify to convex hull
         if simplify is not None:
@@ -102,8 +99,8 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
             conflicts = np.setdiff1d(hull * simplify,
                                      bg_mask * simplify)
             if conflicts.any():
-                logger.debug('Cannot simplify %d: convex hull would create additional intersections %s',
-                          label, str(conflicts))
+                logger.debug(
+                    f'Cannot simplify {label}: convex hull would create additional intersections {str(conflicts)}')
             else:
                 bg_mask = hull
         if open_holes:
@@ -131,8 +128,8 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
                     if len(hole) < 3:
                         idx_hole = hier[0, idx_hole, 0]
                         continue
-                    logger.debug("label %d contour %d [%d pts] has hole %d [%d pts]",
-                              label, idx, len(contour), idx_hole, len(hole))
+                    logger.debug(
+                        f"Label {label} contour {idx} [{len(contour)} pts] has hole {idx_hole} [{len(hole)} pts]")
                     #plot_poly(hole, 'blue')
                     # cut child from outside...
                     # first get nearest point on child
@@ -173,7 +170,7 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
                         diff2 = (interpol[interpol_idx+1:interpol_idx+2] - cispoint2) // 5
                     cispoint1 = cispoint1 + diff1
                     cispoint2 = cispoint2 + diff2
-                    logger.debug("stitching at interpolation pos %d hole pos %d", interpol_idx, hole_idx)
+                    logger.debug(f"Stitching at interpolation pos {interpol_idx} hole pos {hole_idx}")
                     # now stitch together outer (up to cision), inner (re-arranged around cision), outer (rest)
                     # (this works, because inner contours have inverse direction)
                     contour = np.concatenate([contour[:contour_idx], cispoint1,
@@ -182,7 +179,7 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
                     #plot_poly(contour, 'green')
                     idx_hole = hier[0, idx_hole, 0]
                 #plot_poly(contour, 'red')
-                logger.debug("adding label %d contour %d [%d pts]", label, idx, len(contour))
+                logger.debug(f"Adding label {label} contour {idx} [{len(contour)} pts]")
                 contours.append(contour)
                 idx = hier[0, idx, 0]
         else:
@@ -208,8 +205,7 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
             contour = contours[i]
             area = areas[i]
             if min_area and area < min_area and area / total_area < 0.1:
-                logger.warning('Label %d contour %d is too small (%d/%d) in %s',
-                            label, i, area, total_area, name)
+                logger.warning(f'Label {label} contour {i} is too small ({area}/{total_area}) in {name}')
                 continue
             # simplify shape:
             # can produce invalid (self-intersecting) polygons:
@@ -226,7 +222,7 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
                 logger.warning(explain_validity(polygon))
             poly = polygon.exterior.coords[:-1] # keep open
             if len(poly) < 4:
-                logger.warning('Label %d contour %d for %s has less than 4 points', label, i, name)
+                logger.warning(f'Label {label} contour {i} for {name} has less than 4 points')
                 continue
             # get baseline segments intersecting with this line mask
             # and concatenate them from left to right
@@ -369,7 +365,7 @@ class OcropySegment(Processor):
             if regions:
                 # page is already region-segmented
                 if overwrite_regions:
-                    self.logger.info('removing existing TextRegions in page "%s"', page_id)
+                    self.logger.info(f'Removing existing TextRegions in page "{page_id}"', )
                     # we could remove all other region types as well,
                     # but this is more flexible (for workflows with
                     # specialized separator/image/table detectors):
@@ -377,7 +373,7 @@ class OcropySegment(Processor):
                     page.set_ReadingOrder(None)
                     ro = None
                 else:
-                    self.logger.warning('keeping existing TextRegions in page "%s"', page_id)
+                    self.logger.warning(f'Keeping existing TextRegions in page "{page_id}"', )
                     ignore.extend(regions)
             # create reading order if necessary
             if not ro or overwrite_order:
@@ -404,20 +400,20 @@ class OcropySegment(Processor):
             ignore.extend(page.get_TextRegion())
             regions = list(page.get_TableRegion())
             if not regions:
-                self.logger.warning('Page "%s" contains no table regions', page_id)
+                self.logger.warning(f'Page "{page_id}" contains no table regions')
             for region in regions:
                 subregions = region.get_TextRegion()
                 if subregions:
                     # table is already cell-segmented
                     if overwrite_regions:
-                        self.logger.info('removing existing TextRegions in table "%s"', region.id)
+                        self.logger.info(f'Removing existing TextRegions in table "{region.id}"')
                         region.set_TextRegion([])
                         roelem = reading_order.get(region.id)
                         # replace by empty group with same index and ref
                         # (which can then take the cells as subregions)
                         reading_order[region.id] = page_subgroup_in_reading_order(self.logger, roelem)
                     else:
-                        self.logger.warning('skipping table "%s" with existing TextRegions', region.id)
+                        self.logger.warning(f'Skipping table "{region.id}" with existing TextRegions')
                         continue
                 # TODO: also allow grayscale_normalized (try/except?)
                 region_image, region_coords = self.workspace.image_from_segment(
@@ -428,19 +424,22 @@ class OcropySegment(Processor):
                 # create reading order group if necessary
                 roelem = reading_order.get(region.id)
                 if not roelem:
-                    self.logger.warning("Page '%s' table region '%s' is not referenced in reading order (%s)",
-                                page_id, region.id, "no target to add cells to")
+                    self.logger.warning(
+                        f"Page '{page_id}' table region '{region.id}' is not referenced in reading order "
+                        f"(no target to add cells to)")
                 elif overwrite_order:
                     # replace by empty ordered group with same (index and) ref
                     # (which can then take the cells as subregions)
                     roelem = page_subgroup_in_reading_order(self.logger, roelem)
                     reading_order[region.id] = roelem
                 elif isinstance(roelem, (OrderedGroupType, OrderedGroupIndexedType)):
-                    self.logger.warning("Page '%s' table region '%s' already has an ordered group (%s)",
-                                page_id, region.id, "cells will be appended")
+                    self.logger.warning(
+                        f"Page '{page_id}' table region '{region.id}' already has an ordered group "
+                        f"(cells will be appended)")
                 elif isinstance(roelem, (UnorderedGroupType, UnorderedGroupIndexedType)):
-                    self.logger.warning("Page '%s' table region '%s' already has an unordered group (%s)",
-                                page_id, region.id, "cells will not be appended")
+                    self.logger.warning(
+                        f"Page '{page_id}' table region '{region.id}' already has an unordered group "
+                        f"(cells will not be appended)")
                     roelem = None
                 else:
                     # replace regionRef(Indexed) by group with same index and ref
@@ -468,14 +467,14 @@ class OcropySegment(Processor):
                     region.add_TextRegion(subregion)
                     regions.append(subregion)
             if not regions:
-                self.logger.warning('Page "%s" contains no text regions', page_id)
+                self.logger.warning(f'Page "{page_id}" contains no text regions')
             for region in regions:
                 if region.get_TextLine():
                     if overwrite_lines:
-                        self.logger.info('removing existing TextLines in page "%s" region "%s"', page_id, region.id)
+                        self.logger.info(f'Removing existing TextLines in page "{page_id}" region "{region.id}"')
                         region.set_TextLine([])
                     else:
-                        self.logger.warning('keeping existing TextLines in page "%s" region "%s"', page_id, region.id)
+                        self.logger.warning(f'Keeping existing TextLines in page "{page_id}" region "{region.id}"')
                         ignore.extend(region.get_TextLine())
                 # TODO: also allow grayscale_normalized (try/except?)
                 region_image, region_coords = self.workspace.image_from_segment(
@@ -517,8 +516,8 @@ class OcropySegment(Processor):
         sep_bin = np.zeros_like(element_bin, bool)
         ignore_labels = np.zeros_like(element_bin, int)
         for i, segment in enumerate(ignore):
-            self.logger.debug(f'masking foreground of {type(segment).__name__[:-4]} '
-                              f'"{segment.id}" for "{element.id}"')
+            self.logger.debug(
+                f'Masking foreground of {type(segment).__name__[:-4]} "{segment.id}" for "{element.id}"')
             # mark these segments (e.g. separator regions, tables, images)
             # for workflows where they have been detected already;
             # these will be:
@@ -552,7 +551,7 @@ class OcropySegment(Processor):
             fullpage = False
             report = check_region(element_bin, zoom)
             suffix = element.id + '.IMG-CLIP'
-        self.logger.info(f'computing line segmentation for {element_name} "{element.id}"')
+        self.logger.info(f'Computing line segmentation for {element_name} "{element.id}"')
         # TODO: we should downscale if DPI is large enough to save time
         try:
             if report:
@@ -577,8 +576,7 @@ class OcropySegment(Processor):
                 self.logger.error(f'Cannot line-segment {element_name} "{element.id}": {err}')
             return None
 
-        self.logger.info(f'Found {len(np.unique(line_labels)) - 1} text lines '
-                         f'for {element_name} "{element.id}"')
+        self.logger.info(f'Found {len(np.unique(line_labels)) - 1} text lines for {element_name} "{element.id}"')
         # post-process line labels
         if isinstance(element, (PageType, TableRegionType)):
             # aggregate text lines to text regions
@@ -599,8 +597,8 @@ class OcropySegment(Processor):
                     gap_height=self.parameter['gap_height'],
                     gap_width=self.parameter['gap_width'],
                     scale=scale, zoom=zoom)
-                self.logger.info(f'Found {len(np.unique(region_labels)) - 1} text regions '
-                                 f'for {element_name} "{element.id}"')
+                self.logger.info(
+                    f'Found {len(np.unique(region_labels)) - 1} text regions for {element_name} "{element.id}"')
             except Exception as err:
                 self.logger.error(f'Cannot region-segment {element_name} "{element.id}": {err}')
                 region_labels = np.where(line_labels > len(ignore), 1 + len(ignore), line_labels)
@@ -630,7 +628,7 @@ class OcropySegment(Processor):
                     # (no new region, no actual text lines)
                     region_line_labels0 = np.intersect1d(region_line_labels0, ignore_labels)
                     assert len(region_line_labels0) == 1, \
-                        (f'region label "{region_label}" has both existing regions and new lines '
+                        (f'Region label "{region_label}" has both existing regions and new lines '
                          f'({str(region_line_labels0)})')
                     region = ignore[region_line_labels0[0] - 1]
                     if rogroup and region.parent_object_ is element and not isinstance(region, SeparatorRegionType):
@@ -907,9 +905,9 @@ def join_baselines(logger: Logger, baselines, loc=''):
                 elif geom.geom_type == 'MultiLineString':
                     lines.extend(geom)
                 else:
-                    logger.warning("ignoring baseline subtype %s in %s", geom.geom_type, loc)
+                    logger.warning(f"Ignoring baseline subtype {geom.geom_type} in {loc}")
         else:
-            logger.warning("ignoring baseline type %s in %s", baseline.geom_type, loc)
+            logger.warning(f"Ignoring baseline type {baseline.geom_type} in {loc}")
     nlines = len(lines)
     if nlines == 0:
         return None
@@ -971,7 +969,7 @@ def join_baselines(logger: Logger, baselines, loc=''):
         else:
             chains.append([prevl, nextl])
     if len(chains) > 1:
-        logger.warning("baseline merge impossible (no spanning tree) in %s", loc)
+        logger.warning(f"Baseline merge impossible (no spanning tree) in {loc}")
         return None
     assert len(chains) == 1, chains
     assert len(chains[0]) == nlines, chains[0]
@@ -983,7 +981,7 @@ def join_baselines(logger: Logger, baselines, loc=''):
         coords.extend(line.normalize().coords)
     result = LineString(coords)
     if result.is_empty:
-        logger.warning("baseline merge is empty in %s", loc)
+        logger.warning(f"Baseline merge is empty in {loc}")
         return None
     assert result.geom_type == 'LineString', result.wkt
     result = set_precision(result, 1.0)

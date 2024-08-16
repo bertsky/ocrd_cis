@@ -57,7 +57,7 @@ class OcropyDenoise(Processor):
         else:
             regions = page.get_AllRegions(classes=['Text'], order='reading-order')
             if not regions:
-                self.logger.warning('Page "%s" contains no text regions', page_id)
+                self.logger.warning(f'Page "{page_id}" contains no text regions')
             for region in regions:
                 region_image, region_xywh = self.workspace.image_from_segment(
                     region, page_image, page_xywh,
@@ -69,7 +69,7 @@ class OcropyDenoise(Processor):
                     continue
                 lines = region.get_TextLine()
                 if not lines:
-                    self.logger.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
+                    self.logger.warning(f'Page "{page_id}" region "{region.id}" contains no text lines')
                 for line in lines:
                     line_image, line_xywh = self.workspace.image_from_segment(
                         line, region_image, region_xywh,
@@ -80,9 +80,9 @@ class OcropyDenoise(Processor):
 
     def process_segment(self, segment, segment_image, segment_xywh, zoom) -> Optional[OcrdPageResultImage]:
         if not segment_image.width or not segment_image.height:
-            self.logger.warning("Skipping '%s' with zero size", file_id)
+            self.logger.warning(f"Skipping '{segment.id}' with zero size")
             return None
-        self.logger.info("About to despeckle '%s'", file_id)
+        self.logger.info(f"About to despeckle '{segment.id}'")
         bin_image = remove_noise(segment_image,
                                  maxsize=self.parameter['noise_maxsize']/zoom*300/72) # in pt
         # update PAGE (reference the image file):

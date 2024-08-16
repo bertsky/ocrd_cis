@@ -101,29 +101,28 @@ class OcropyDewarp(Processor):
 
         regions = page.get_AllRegions(classes=['Text'], order='reading-order')
         if not regions:
-            self.logger.warning('Page "%s" contains no text regions', page_id)
+            self.logger.warning(f'Page "{page_id}" contains no text regions')
         for region in regions:
             region_image, region_xywh = self.workspace.image_from_segment(
                 region, page_image, page_xywh)
 
             lines = region.get_TextLine()
             if not lines:
-                self.logger.warning('Region %s contains no text lines', region.id)
+                self.logger.warning(f'Region {region.id} contains no text lines')
             for line in lines:
                 line_image, line_xywh = self.workspace.image_from_segment(
                     line, region_image, region_xywh)
 
-                self.logger.info("About to dewarp page '%s' region '%s' line '%s'",
-                                 page_id, region.id, line.id)
+                self.logger.info(f"About to dewarp page '{page_id}' region '{region.id}' line '{line.id}'")
                 try:
                     dew_image = dewarp(line_image, self.lnorm, check=True,
                                        max_neighbour=self.parameter['max_neighbour'],
                                        zoom=zoom)
                 except InvalidLine as err:
-                    self.logger.error('cannot dewarp line "%s": %s', line.id, err)
+                    self.logger.error(f'Cannot dewarp line "{line.id}": {err}')
                     continue
                 except InadequateLine as err:
-                    self.logger.warning('cannot dewarp line "%s": %s', line.id, err)
+                    self.logger.warning(f'cannot dewarp line "{line.id}": {err}')
                     # as a fallback, simply pad the image vertically
                     # (just as dewarping would do on average, so at least
                     #  this line has similar margins as the others):

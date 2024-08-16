@@ -179,13 +179,13 @@ class OcropyRecognize(Processor):
                 linegt = line.TextEquiv[0].Unicode
             else:
                 linegt = ''
-            self.logger.debug("GT  '%s': '%s'", line.id, linegt)
+            self.logger.debug(f"GT  '{line.id}': '{linegt}'")
             # remove existing annotation below line level:
             line.set_TextEquiv([])
             line.set_Word([])
 
             if line_image.size[1] < 16:
-                self.logger.debug(f"ERROR: bounding box is too narrow at line {line.id}")
+                self.logger.debug(f"Error: bounding box is too narrow at line {line.id}")
                 continue
             # resize image to 48 pixel height
             final_img, scale = resize_keep_ratio(line_image)
@@ -194,7 +194,7 @@ class OcropyRecognize(Processor):
             try:
                 linepred, clist, rlist, confidlist = recognize(final_img, self.pad, self.network, check=True)
             except Exception as err:
-                self.logger.debug(f'error processing line "{line.id}": {err}')
+                self.logger.debug(f'Error processing line "{line.id}": {err}')
                 continue
             self.logger.debug(f"OCR '{line.id}': '{linepred}'")
             edits += Levenshtein.distance(linepred, linegt)

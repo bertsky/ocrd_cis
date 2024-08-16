@@ -16,7 +16,7 @@ from .common import array2pil, determine_zoom, pil2array, remove_noise
 
 
 def binarize(logger: Logger, pil_image, method='ocropy', maxskew=2, threshold=0.5, nrm=False, zoom=1.0):
-    logger.debug('binarizing %dx%d image with method=%s', pil_image.width, pil_image.height, method)
+    logger.debug(f'Binarizing {pil_image.width}x{pil_image.height} image with method={method}')
     if method == 'none':
         # useful if the images are already binary,
         # but lack image attribute `binarized`
@@ -242,8 +242,8 @@ class OcropyBinarize(Processor):
         #orientation = -angle
         #orientation = 180 - (180 - orientation) % 360 # map to [-179.999,180]
         #line.set_orientation(orientation) # does not exist on line level!
-        self.logger.warning(f"cannot add orientation %.2f to page '{page_id}' region '{region_id}' line '{line.id}'",
-                            -angle)
+        self.logger.warning(
+            f"Cannot add orientation %.2f to page '{page_id}' region '{region_id}' line '{line.id}'", -angle)
         bin_image = remove_noise(bin_image, maxsize=self.parameter['noise_maxsize'])
         if self.parameter['noise_maxsize']:
             features += ',despeckled'

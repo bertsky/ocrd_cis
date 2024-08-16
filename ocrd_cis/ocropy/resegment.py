@@ -126,14 +126,14 @@ class OcropyResegment(Processor):
                   page.get_CustomRegion())
         regions = page.get_AllRegions(classes=['Text'])
         if not regions:
-            self.logger.warning('Page "%s" contains no text regions', page_id)
+            self.logger.warning(f'Page "{page_id}" contains no text regions')
         elif level == 'page':
             lines = [line for region in regions
                      for line in region.get_TextLine()]
             if lines:
                 self._process_segment(page, page_image, page_coords, page_id, zoom, lines, ignore)
             else:
-                self.logger.warning('Page "%s" contains no text regions with lines', page_id)
+                self.logger.warning(f'Page "{page_id}" contains no text regions with lines', )
         else:
             for region in regions:
                 lines = region.get_TextLine()
@@ -142,7 +142,7 @@ class OcropyResegment(Processor):
                         region, page_image, page_coords, feature_selector='binarized')
                     self._process_segment(region, region_image, region_coords, page_id, zoom, lines, ignore)
                 else:
-                    self.logger.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
+                    self.logger.warning(f'Page "{page_id}" region "{region.id}" contains no text lines')
         return OcrdPageResult(pcgts)
  
     def _process_segment(self, parent, parent_image, parent_coords, page_id, zoom, lines, ignore):
@@ -163,8 +163,7 @@ class OcropyResegment(Processor):
             fullpage = False
             report = check_region(parent_bin, zoom)
         if report:
-            self.logger.warning('Invalid %s "%s": %s', tag,
-                        page_id if fullpage else parent.id, report)
+            self.logger.warning(f'Invalid {tag} "{page_id if fullpage else parent.id}": {report}')
             return
         # get existing line labels:
         line_labels = np.zeros_like(parent_bin, bool)
@@ -191,8 +190,7 @@ class OcropyResegment(Processor):
             line_labels[i, line_y, line_x] = True
         # only text region(s) may contain new text lines
         for i, region in enumerate(set(line.parent_object_ for line in lines)):
-            self.logger.debug('unmasking area of text region "%s" for "%s"',
-                      region.id, page_id if fullpage else parent.id)
+            self.logger.debug(f'Unmasking area of text region "{region.id}" for "{page_id if fullpage else parent.id}"')
             region_polygon = coordinates_of_segment(region, parent_image, parent_coords)
             region_polygon = make_valid(Polygon(region_polygon))
             region_polygon = np.array(region_polygon.exterior.coords, int)[:-1]
@@ -201,14 +199,14 @@ class OcropyResegment(Processor):
                                     parent_bin.shape)] = False
         # mask/ignore overlapping neighbours
         for i, segment in enumerate(ignore):
-            self.logger.debug('masking area of %s "%s" for "%s"', type(segment).__name__[:-4],
-                      segment.id, page_id if fullpage else parent.id)
+            self.logger.debug(f'Masking area of {type(segment).__name__[:-4]} "{segment.id}" for '
+                              f'"{page_id if fullpage else parent.id}"')
             segment_polygon = coordinates_of_segment(segment, parent_image, parent_coords)
             ignore_bin[draw.polygon(segment_polygon[:, 1],
                                     segment_polygon[:, 0],
                                     parent_bin.shape)] = True
         if method != 'lineest':
-            self.logger.debug('calculating connected component and distance transforms for "%s"', parent.id)
+            self.logger.debug(f'Calculating connected component and distance transforms for "{parent.id}"')
             bin = parent_bin & ~ ignore_bin
             components, _ = morph.label(bin)
             # estimate glyph scale (roughly)
@@ -217,7 +215,7 @@ class OcropyResegment(Processor):
                 counts = np.sqrt(3 * counts)
                 scale = int(np.median(counts[(5/zoom < counts) & (counts < 100/zoom)]))
                 components *= (counts > 15/zoom)[components]
-                self.logger.debug("estimated scale: %d", scale)
+                self.logger.debug(f"Estimated scale: {scale}")
             else:
                 scale = 43
             if method == 'ccomps':
@@ -235,7 +233,7 @@ class OcropyResegment(Processor):
                 new_labels = np.zeros_like(parent_bin, np.uint8)
                 for i, line in enumerate(lines):
                     if line.Baseline is None:
-                        self.logger.warning("Skipping '%s' without baseline", line.id)
+                        self.logger.warning(f"Skipping '{line.id}' without baseline")
                         new_labels[line_labels[i]] = i + 1
                         continue
                     line_baseline = baseline_of_segment(line, parent_coords)
@@ -254,14 +252,13 @@ class OcropyResegment(Processor):
                 parent_bin, seps=ignore_bin, zoom=zoom, spread_dist=maxdist or scale/2,
                 fullpage=fullpage, maxseps=0, maxcolseps=len(ignore), maximages=0)
         except Exception as err:
-            self.logger.error('Cannot line-segment %s "%s": %s',
-                      tag, page_id if fullpage else parent.id, err)
+            self.logger.error(f'Cannot line-segment {tag} "{page_id if fullpage else parent.id}": {err}')
             return
-        self.logger.info("Found %d new line labels for %d existing lines on %s '%s'",
-                 new_line_labels.max(), len(lines), tag, parent.id)
+        self.logger.info(
+            f"Found {new_line_labels.max()} new line labels for {len(lines)} existing lines on {tag} '{parent.id}'")
         # polygonalize and prepare comparison
         new_line_polygons, new_line_labels = masks2polygons(self.logger,
-            new_line_labels, new_baselines, parent_bin, '%s "%s"' % (tag, parent.id),
+            new_line_labels, new_baselines, parent_bin, name=f'{tag} "{parent.id}"',
             min_area=640/zoom/zoom)
         DSAVE('line_labels', [np.argmax(np.insert(line_labels, 0, 0, axis=0), axis=0), parent_bin])
         DSAVE('new_line_labels', [new_line_labels, parent_bin])
@@ -345,31 +342,29 @@ class OcropyResegment(Processor):
         for j, line in enumerate(lines):
             new_lines = np.nonzero(assignments == j)[0]
             if not np.prod(new_lines.shape):
-                self.logger.debug("no lines for '%s' match or fit", line.id)
+                self.logger.debug(f"no lines for '{line.id}' match or fit", )
                 continue
             covers = np.sum(covers_bg[new_lines,j])
             if covers < threshold / 3:
-                self.logger.debug("new lines for '%s' only cover %.1f%% bg",
-                          line.id, covers * 100)
+                self.logger.debug(f"new lines for '{line.id}' only cover %.1f%% bg", covers * 100)
                 continue
             covers = np.sum(covers_fg[new_lines,j])
             if covers < threshold:
-                self.logger.debug("new lines for '%s' only cover %.1f%% fg",
-                          line.id, covers * 100)
+                self.logger.debug(f"new lines for '{line.id}' only cover %.1f%% fg", covers * 100)
                 continue
             looses = (assignments < 0) & (covers_bg[:,j] > 0.1)
             if looses.any():
                 covers = np.sum(covers_bg[np.nonzero(looses)[0],j])
-                self.logger.debug("new lines for '%s' would loose %d non-matching segments totalling %.1f%% bg",
-                          line.id, np.count_nonzero(looses), covers * 100)
+                self.logger.debug(
+                    f"new lines for '{line.id}' would loose {np.count_nonzero(looses)} non-matching segments "
+                    f"totalling %.1f%% bg", covers * 100)
                 continue
             line_count = np.count_nonzero(line_labels[j] & parent_bin)
             new_count = covers * line_count
-            self.logger.debug('Black pixels before/after resegment of line "%s": %d/%d',
-                      line.id, line_count, new_count)
+            self.logger.debug(f'Black pixels before/after resegment of line "{line.id}": {line_count}/{new_count}')
             # combine all assigned new lines to single outline polygon
             if len(new_lines) > 1:
-                self.logger.debug("joining %d new line polygons for '%s'", len(new_lines), line.id)
+                self.logger.debug(f"joining {len(new_lines)} new line polygons for '{line.id}'")
             new_polygon = join_polygons([new_line_polygons[i] #intersections[(i, j)]
                                          for i in new_lines], loc=line.id, scale=scale)
             new_baseline = join_baselines(self.logger, [new_polygon.intersection(new_baselines[i])
@@ -379,7 +374,7 @@ class OcropyResegment(Processor):
                                                    parent_image, parent_coords)
             line_polygon = polygon_for_parent(line_polygon, line.parent_object_)
             if line_polygon is None:
-                self.logger.warning("Ignoring extant new polygon for line '%s'", line.id)
+                self.logger.warning(f"Ignoring extant new polygon for line '{line.id}'")
                 return
             # annotate result:
             line.get_Coords().set_points(points_from_polygon(line_polygon))
@@ -394,7 +389,7 @@ class OcropyResegment(Processor):
                     if j == otherj:
                         continue
                     otherline = lines[otherj]
-                    self.logger.debug("subtracting new '%s' from overlapping '%s'", line.id, otherline.id)
+                    self.logger.debug(f"subtracting new '{line.id}' from overlapping '{otherline.id}'")
                     other_polygon = diff_polygons(line_polygons[otherj].context, new_polygon)
                     if other_polygon.is_empty:
                         continue
@@ -403,7 +398,7 @@ class OcropyResegment(Processor):
                                                             parent_image, parent_coords)
                     other_polygon = polygon_for_parent(other_polygon, otherline.parent_object_)
                     if other_polygon is None:
-                        self.logger.warning("Ignoring extant new polygon for line '%s'", otherline.id)
+                        self.logger.warning(f"Ignoring extant new polygon for line '{otherline.id}'")
                         continue
                     otherline.get_Coords().set_points(points_from_polygon(other_polygon))
 
@@ -434,29 +429,26 @@ def spread_dist(logger: Logger, lines, old_labels, new_labels, binarized, compon
             continue
         count = np.count_nonzero(old_label)
         if not count:
-            logger.warning("skipping zero-area line '%s'", line.id)
+            logger.warning(f"skipping zero-area line '{line.id}'")
             continue
         covers = np.count_nonzero(new_label) / count
         if covers < threshold / 3:
-            logger.debug("new line for '%s' only covers %.1f%% bg",
-                      line.id, covers * 100)
+            logger.debug(f"new line for '%s' only covers %.1f%% bg", covers * 100)
             continue
         count = np.count_nonzero(old_label * binarized)
         if not count:
-            logger.warning("skipping binary-empty line '%s'", line.id)
+            logger.warning(f"skipping binary-empty line '{line.id}'")
             continue
         covers = np.count_nonzero(new_label * binarized) / count
         if covers < threshold:
-            logger.debug("new line for '%s' only covers %.1f%% fg",
-                      line.id, covers * 100)
+            logger.debug(f"new line for '{line.id}' only covers %.1f%% fg", covers * 100)
             continue
-        logger.debug('Black pixels before/after resegment of line "%s": %d/%d',
-                  line.id, count, covers * count)
+        logger.debug(f'Black pixels before/after resegment of line "{line.id}": {count}/{covers * count}')
         contours = [contour[:,::-1] # get x,y order again
                     for contour, area in morph.find_contours(new_label)]
         #LOG.debug("joining %d subsegments for %s", len(contours), line.id)
         if len(contours) == 0:
-            logger.warning("no contours for %s - keeping", line.id)
+            logger.warning(f"no contours for {line.id} - keeping")
             continue
         else:
             # get alpha shape
@@ -468,7 +460,7 @@ def spread_dist(logger: Logger, lines, old_labels, new_labels, binarized, compon
         polygon = coordinates_for_segment(poly, None, coords)
         polygon = polygon_for_parent(polygon, line.parent_object_)
         if polygon is None:
-            logger.warning("Ignoring extant line for %s", line.id)
+            logger.warning(f"Ignoring extant line for {line.id}")
             continue
         line.get_Coords().set_points(points_from_polygon(polygon))
 

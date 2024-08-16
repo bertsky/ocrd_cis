@@ -128,15 +128,13 @@ class OcropyClip(Processor):
             if level == 'region':
                 if region.get_AlternativeImage():
                     # FIXME: This should probably be an exception (bad workflow configuration).
-                    self.logger.warning(
-                        f'Page "{page_id}" region "{region.id}" already contains image data: skipping')
+                    self.logger.warning(f'Page "{page_id}" region "{region.id}" already contains image data: skipping')
                     continue
                 shape = prep(shapes[i])
                 neighbours = [(regionj, maskj) for shapej, regionj, maskj
                               in zip(shapes[:i] + shapes[i+1:], regions[:i] + regions[i+1:], masks[:i] + masks[i+1:])
                               if shape.intersects(shapej)]
                 if neighbours:
-                    segment_region_file_id = f"{output_file_id}_{region.id}"
                     ret.images.append(self.process_segment(
                         region, masks[i], polygons[i], neighbours, background_image,
                         page_image, page_xywh, page_bin, page_id))
@@ -167,7 +165,6 @@ class OcropyClip(Processor):
                               in zip(shapes[:j] + shapes[j+1:], lines[:j] + lines[j+1:], masks[:j] + masks[j+1:])
                               if shape.intersects(shapej)]
                 if neighbours:
-                    segment_line_file_id = f"{output_file_id}_{region.id}_{line.id}"
                     ret.images.append(self.process_segment(
                         line, masks[j], polygons[j], neighbours, background_image,
                         region_image, region_coords, region_bin, page_id))
