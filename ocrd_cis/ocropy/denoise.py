@@ -51,7 +51,7 @@ class OcropyDenoise(Processor):
         zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
         if level == 'page':
-            image = self.process_segment(page, page_image, page_xywh, zoom)
+            image = self.process_segment(page, page_image, page_xywh, zoom, page_id)
             if image:
                 result.images.append(image)
         else:
@@ -63,7 +63,7 @@ class OcropyDenoise(Processor):
                     region, page_image, page_xywh,
                     feature_selector='binarized' if level == 'region' else '')
                 if level == 'region':
-                    image = self.process_segment(region, region_image, region_xywh, zoom)
+                    image = self.process_segment(region, region_image, region_xywh, zoom, page_id)
                     if image:
                         result.images.append(image)
                     continue
@@ -73,12 +73,12 @@ class OcropyDenoise(Processor):
                 for line in lines:
                     line_image, line_xywh = self.workspace.image_from_segment(
                         line, region_image, region_xywh, feature_selector='binarized')
-                    image = self.process_segment(line, line_image, line_xywh, zoom)
+                    image = self.process_segment(line, line_image, line_xywh, zoom, page_id)
                     if image:
                         result.images.append(image)
         return result
 
-    def process_segment(self, segment, segment_image, segment_xywh, zoom) -> Optional[OcrdPageResultImage]:
+    def process_segment(self, segment, segment_image, segment_xywh, zoom, page_id) -> Optional[OcrdPageResultImage]:
         if not segment_image.width or not segment_image.height:
             self.logger.warning(f"Skipping '{segment.id}' with zero size")
             return None
@@ -87,5 +87,6 @@ class OcropyDenoise(Processor):
             segment_image, maxsize=self.parameter['noise_maxsize'] / zoom * 300 / 72)  # in pt
         # update PAGE (reference the image file):
         alt_image = AlternativeImageType(comments=segment_xywh['features'] + ',despeckled')
+        suffix = f"{page_id}_{segment.id}.IMG-DESPECK"
         segment.add_AlternativeImage(alt_image)
-        return OcrdPageResultImage(bin_image, segment.id + '.IMG-DESPECK', alt_image)
+        return OcrdPageResultImage(bin_image, suffix, alt_image)
