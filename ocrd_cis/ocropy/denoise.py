@@ -1,17 +1,15 @@
 from __future__ import absolute_import
+
+from typing import Optional
 from logging import Logger
 from os.path import join
 
-from ocrd_utils import (
-    getLogger,
-    make_file_id,
-    MIMETYPE_PAGE
-)
-from ocrd_modelfactory import page_from_file
+from ocrd_utils import getLogger
 from ocrd_models.ocrd_page import (
-    to_xml, AlternativeImageType
+    AlternativeImageType, OcrdPage
 )
 from ocrd import Processor
+from ocrd.processor import OcrdPageResult, OcrdPageResultImage
 
 from .common import (
     # binarize,
@@ -27,10 +25,10 @@ class OcropyDenoise(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropyDenoise')
 
-    def process(self):
+    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
         """Despeckle the pages / regions / lines of the workspace.
 
-        Open and deserialise PAGE input files and their respective images,
+        Open and deserialise PAGE input file and its respective images,
         then iterate over the element hierarchy down to the requested
         ``level-of-operation``.
 
@@ -49,73 +47,51 @@ class OcropyDenoise(Processor):
         Produce a new output file by serialising the resulting hierarchy.
         """
         level = self.parameter['level-of-operation']
+        pcgts = input_pcgts[0]
+        result = OcrdPageResult(pcgts)
+        page = pcgts.get_Page()
 
-        for (n, input_file) in enumerate(self.input_files):
-            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
-            file_id = make_file_id(input_file, self.output_file_grp)
+        page_image, page_xywh, page_image_info = self.workspace.image_from_page(
+            page, page_id,
+            feature_selector='binarized' if level == 'page' else '')
+        zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
-            pcgts = page_from_file(self.workspace.download_file(input_file))
-            self.add_metadata(pcgts)
-            page_id = pcgts.pcGtsId or input_file.pageId or input_file.ID # (PageType has no id)
-            page = pcgts.get_Page()
-                
-            page_image, page_xywh, page_image_info = self.workspace.image_from_page(
-                page, page_id,
-                feature_selector='binarized' if level == 'page' else '')
+        if level == 'page':
+            image = self.process_segment(page, page_image, page_xywh, zoom)
+            if image:
+                result.images.append(image)
+        else:
+            regions = page.get_AllRegions(classes=['Text'], order='reading-order')
+            if not regions:
+                self.logger.warning('Page "%s" contains no text regions', page_id)
+            for region in regions:
+                region_image, region_xywh = self.workspace.image_from_segment(
+                    region, page_image, page_xywh,
+                    feature_selector='binarized' if level == 'region' else '')
+                if level == 'region':
+                    image = self.process_segment(region, region_image, region_xywh, zoom)
+                    if image:
+                        result.images.append(image)
+                    continue
+                lines = region.get_TextLine()
+                if not lines:
+                    self.logger.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
+                for line in lines:
+                    line_image, line_xywh = self.workspace.image_from_segment(
+                        line, region_image, region_xywh,
+                        feature_selector='binarized')
+                    image = self.process_segment(line, line_image, line_xywh, zoom)
+                    if image:
+                        result.images.append(image)
 
-            zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
-
-            if level == 'page':
-                self.process_segment(page, page_image, page_xywh, zoom,
-                                     input_file.pageId, file_id)
-            else:
-                regions = page.get_AllRegions(classes=['Text'], order='reading-order')
-                if not regions:
-                    self.logger.warning('Page "%s" contains no text regions', page_id)
-                for region in regions:
-                    region_image, region_xywh = self.workspace.image_from_segment(
-                        region, page_image, page_xywh,
-                        feature_selector='binarized' if level == 'region' else '')
-                    if level == 'region':
-                        self.process_segment(region, region_image, region_xywh, zoom,
-                                             input_file.pageId, file_id + '_' + region.id)
-                        continue
-                    lines = region.get_TextLine()
-                    if not lines:
-                        self.logger.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
-                    for line in lines:
-                        line_image, line_xywh = self.workspace.image_from_segment(
-                            line, region_image, region_xywh,
-                            feature_selector='binarized')
-                        self.process_segment(line, line_image, line_xywh, zoom,
-                                             input_file.pageId,
-                                             file_id + '_' + region.id + '_' + line.id)
-
-            # update METS (add the PAGE file):
-            file_path = join(self.output_file_grp, file_id + '.xml')
-            pcgts.set_pcGtsId(file_id)
-            out = self.workspace.add_file(
-                ID=file_id,
-                file_grp=self.output_file_grp,
-                pageId=input_file.pageId,
-                local_filename=file_path,
-                mimetype=MIMETYPE_PAGE,
-                content=to_xml(pcgts))
-            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
-                     file_id, self.output_file_grp, out.local_filename)
-
-    def process_segment(self, segment, segment_image, segment_xywh, zoom, page_id, file_id):
+    def process_segment(self, segment, segment_image, segment_xywh, zoom) -> Optional[OcrdPageResultImage]:
         if not segment_image.width or not segment_image.height:
             self.logger.warning("Skipping '%s' with zero size", file_id)
-            return
+            return None
         self.logger.info("About to despeckle '%s'", file_id)
         bin_image = remove_noise(segment_image,
                                  maxsize=self.parameter['noise_maxsize']/zoom*300/72) # in pt
-        # update METS (add the image file):
-        file_path = self.workspace.save_image_file(
-            bin_image, file_id + '.IMG-DESPECK', self.output_file_grp,
-            page_id=page_id)
         # update PAGE (reference the image file):
-        segment.add_AlternativeImage(AlternativeImageType(
-            filename=file_path,
-            comments=segment_xywh['features'] + ',despeckled'))
+        alt_image = AlternativeImageType(comments=segment_xywh['features'] + ',despeckled')
+        segment.add_AlternativeImage(alt_image)
+        return OcrdPageResultImage(bin_image, segment.id + '.IMG-DESPECK', alt_image)
