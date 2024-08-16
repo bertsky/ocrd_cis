@@ -123,5 +123,7 @@ class OcropyDewarp(Processor):
                     dew_image = padvert(line_image, self.parameter['range'])
                 # update PAGE (reference the image file):
                 alt_image = AlternativeImageType(comments=line_xywh['features'] + ',dewarped')
-                line.add_AlternativeImage(alternative_image)
-                return OcrdPageResultImage(dew_image, region.id + '_' + line.id + '.IMG-DEWARP', alt_image)
+                line.add_AlternativeImage(alt_image)
+                suffix = f"{region.id}_{line.id}.IMG-DEWARP"
+                result.images.append(OcrdPageResultImage(dew_image, suffix, alt_image))
+        return result
