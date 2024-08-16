@@ -3,6 +3,7 @@ jobs:
   test-python3:
     docker:
       - image: ocrd/core
+    resource_class: large
     environment:
       PIP: pip3
       PYTHON: python3
