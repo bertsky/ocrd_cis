@@ -388,13 +388,12 @@ class OcropySegment(Processor):
                 rogroup = OrderedGroupType(id="reading-order")
                 ro.set_OrderedGroup(rogroup)
             if (not rogroup.get_RegionRefIndexed() and
-                not rogroup.get_OrderedGroupIndexed() and
-                not rogroup.get_UnorderedGroupIndexed()):
-                 # schema forbids empty OrderedGroup
+                    not rogroup.get_OrderedGroupIndexed() and
+                    not rogroup.get_UnorderedGroupIndexed()):
+                # schema forbids empty OrderedGroup
                 ro.set_OrderedGroup(None)
             # go get TextRegions with TextLines (and SeparatorRegions):
-            image = self._process_element(page, ignore, page_image, page_coords,
-                                          zoom=zoom, rogroup=rogroup)
+            image = self._process_element(page, ignore, page_image, page_coords, zoom=zoom, rogroup=rogroup)
             if image:
                 result.images.append(image)
             return result
@@ -450,11 +449,11 @@ class OcropySegment(Processor):
                     roelem = page_subgroup_in_reading_order(self.logger, roelem)
                     reading_order[region.id] = roelem
                 # go get TextRegions with TextLines (and SeparatorRegions)
-                image = self._process_element(region, subignore, region_image, region_coords,
-                                              zoom=zoom, rogroup=roelem)
+                image = self._process_element(
+                    region, subignore, region_image, region_coords, zoom=zoom, rogroup=roelem)
                 if image:
                     result.images.append(image)
-        else: # 'region'
+        else:  # 'region'
             regions = list(page.get_TextRegion())
             # besides top-level text regions, line-segment any table cells,
             # and for tables without any cells, add a pseudo-cell
@@ -463,10 +462,8 @@ class OcropySegment(Processor):
                 if subregions:
                     regions.extend(subregions)
                 else:
-                    subregion = TextRegionType(id=region.id + '_text',
-                                               Coords=region.get_Coords(),
-                                               # as if generated from parser:
-                                               parent_object_=region)
+                    subregion = TextRegionType(
+                        id=f'{region.id}_text', Coords=region.get_Coords(), parent_object_=region)
                     region.add_TextRegion(subregion)
                     regions.append(subregion)
             if not regions:
@@ -490,7 +487,6 @@ class OcropySegment(Processor):
                 image = self._process_element(region, ignore, region_image, region_coords, zoom=zoom)
                 if image:
                     result.images.append(image)
-
         return result
 
     def _process_element(self, element, ignore, image, coords, zoom=1.0, rogroup=None) -> Optional[OcrdPageResultImage]:
@@ -535,7 +531,7 @@ class OcropySegment(Processor):
             sp_col = segment_polygon[:, 0]
             if isinstance(segment, SeparatorRegionType):
                 sep_bin[draw.polygon(sp_row, sp_col, sep_bin.shape)] = True
-            ignore_labels[draw.polygon(sp_row, sp_col, ignore_labels.shape)] = i+1 # mapped back for RO
+            ignore_labels[draw.polygon(sp_row, sp_col, ignore_labels.shape)] = i + 1 #  mapped back for RO
         if isinstance(element, PageType):
             element_name = 'page'
             fullpage = True
@@ -555,6 +551,7 @@ class OcropySegment(Processor):
             report = check_region(element_bin, zoom)
             suffix = element.id + '.IMG-CLIP'
         self.logger.info(f'Computing line segmentation for {element_name} "{element.id}"')
+        element_name_id = f'{element_name} "{element.id}"'
         # TODO: we should downscale if DPI is large enough to save time
         try:
             if report:
@@ -564,7 +561,7 @@ class OcropySegment(Processor):
                 # but keep them for h/v-line detection (in fullpage mode):
                 element_bin, seps=(sep_bin + ignore_labels) > 0,
                 zoom=zoom, fullpage=fullpage,
-                spread_dist=round(self.parameter['spread'] / zoom * 300 / 72), # in pt
+                spread_dist=round(self.parameter['spread'] / zoom * 300 / 72),  # in pt
                 # these are ignored when not in fullpage mode:
                 maxcolseps=self.parameter['maxcolseps'],
                 maxseps=self.parameter['maxseps'],
@@ -576,10 +573,10 @@ class OcropySegment(Processor):
                 # as a fallback, add a single text line comprising the whole region:
                 element.add_TextLine(TextLineType(id=element.id + "_line", Coords=element.get_Coords()))
             else:
-                self.logger.error(f'Cannot line-segment {element_name} "{element.id}": {err}')
+                self.logger.error(f'Cannot line-segment {element_name_id}: {err}')
             return None
 
-        self.logger.info(f'Found {len(np.unique(line_labels)) - 1} text lines for {element_name} "{element.id}"')
+        self.logger.info(f'Found {len(np.unique(line_labels)) - 1} text lines for {element_name_id}')
         # post-process line labels
         if isinstance(element, (PageType, TableRegionType)):
             # aggregate text lines to text regions
@@ -594,18 +591,18 @@ class OcropySegment(Processor):
                 region_labels = lines2regions(
                     element_bin, line_labels,
                     rlabels=ignore_labels,
-                    sepmask=np.maximum(sepmask, colseps), # add bg
+                    sepmask=np.maximum(sepmask, colseps),  # add bg
                     # decide horizontal vs vertical cut when gaps of similar size
                     prefer_vertical=not isinstance(element, TableRegionType),
                     gap_height=self.parameter['gap_height'],
                     gap_width=self.parameter['gap_width'],
                     scale=scale, zoom=zoom)
                 self.logger.info(
-                    f'Found {len(np.unique(region_labels)) - 1} text regions for {element_name} "{element.id}"')
+                    f'Found {len(np.unique(region_labels)) - 1} text regions for {element_name_id}')
             except Exception as err:
-                self.logger.error(f'Cannot region-segment {element_name} "{element.id}": {err}')
+                self.logger.error(f'Cannot region-segment {element_name_id}: {err}')
                 region_labels = np.where(line_labels > len(ignore), 1 + len(ignore), line_labels)
-            
+
             # prepare reading order group index
             if rogroup:
                 if isinstance(rogroup, (OrderedGroupType, OrderedGroupIndexedType)):
@@ -622,7 +619,7 @@ class OcropySegment(Processor):
             region_no = 0
             for region_label in np.unique(region_labels):
                 if not region_label:
-                    continue # no bg
+                    continue  # no bg
                 region_mask = region_labels == region_label
                 region_line_labels = line_labels * region_mask
                 region_line_labels0 = np.setdiff1d(region_line_labels, [0])
@@ -644,18 +641,17 @@ class OcropySegment(Processor):
                 order[np.setdiff1d(region_line_labels0, element_bin * region_line_labels)] = 0
                 region_line_labels = order[region_line_labels]
                 # avoid horizontal gaps
-                region_line_labels = hmerge_line_seeds(element_bin, region_line_labels, scale,
-                                                       seps=np.maximum(sepmask, colseps))
+                region_line_labels = hmerge_line_seeds(
+                    element_bin, region_line_labels, scale, seps=np.maximum(sepmask, colseps))
                 region_mask |= region_line_labels > 0
                 # find contours for region (can be non-contiguous)
-                regions, _ = masks2polygons(self.logger, region_mask * region_label, None, element_bin,
-                                            name=f'{element_name} "{element.id}"',
-                                            min_area=6000 / zoom / zoom,
-                                            simplify=ignore_labels * ~(sep_bin))
+                regions, _ = masks2polygons(
+                    self.logger, region_mask * region_label, None, element_bin, name=element_name_id,
+                    min_area=6000 / zoom / zoom, simplify=ignore_labels * ~(sep_bin))
                 # find contours for lines (can be non-contiguous)
-                lines, _ = masks2polygons(self.logger, region_line_labels, baselines, element_bin,
-                                          name=f'region "{element.id}"',
-                                          min_area=640 / zoom / zoom)
+                lines, _ = masks2polygons(
+                    self.logger, region_line_labels, baselines, element_bin, name=f'region "{element.id}"',
+                    min_area=640 / zoom / zoom)
                 # create new lines in new regions (allocating by intersection)
                 line_polys = [Polygon(polygon) for _, polygon, _ in lines]
                 for _, region_polygon, _ in regions:
@@ -674,7 +670,7 @@ class OcropySegment(Processor):
                     # find out which line (contours) belong to which region (contours)
                     line_no = 0
                     for i, line_poly in enumerate(line_polys):
-                        if not region_poly.intersects(line_poly): # .contains
+                        if not region_poly.intersects(line_poly):  # .contains
                             continue
                         line_label, line_polygon, line_baseline = lines[i]
                         # convert back to absolute (page) coordinates:
@@ -696,16 +692,14 @@ class OcropySegment(Processor):
                     # if the region has received text lines, keep it
                     if region.get_TextLine():
                         element.add_TextRegion(region)
-                        self.logger.info(f'Added region "{region_id}" with {line_no} lines '
-                                         f'for {element_name} "{element.id}"')
+                        self.logger.info(f'Added region "{region_id}" with {line_no} lines for {element_name_id}')
                         if rogroup:
                             index = page_add_to_reading_order(rogroup, region.id, index)
             # add additional image/non-text regions from compute_segmentation
             # (e.g. drop-capitals or images) ...
-            self.logger.info(f'Found {images.max()} large image regions for {element_name} "{element.id}"')
+            self.logger.info(f'Found {images.max()} large image regions for {element_name_id}')
             # find contours around region labels (can be non-contiguous):
-            image_polygons, _ = masks2polygons(self.logger, images, None, element_bin,
-                                               name=f'{element_name} "{element.id}"')
+            image_polygons, _ = masks2polygons(self.logger, images, None, element_bin, name=element_name_id)
             for image_label, polygon, _ in image_polygons:
                 # convert back to absolute (page) coordinates:
                 region_polygon = coordinates_for_segment(polygon, image, coords)
@@ -719,11 +713,10 @@ class OcropySegment(Processor):
                 element.add_ImageRegion(ImageRegionType(
                     id=region_id, Coords=CoordsType(points=points_from_polygon(region_polygon))))
             # split detected separator labels into separator regions:
-            self.logger.info(f'Found {seplines.max()} separators for {element_name} "{element.id}"')
+            self.logger.info(f'Found {seplines.max()} separators for {element_name_id}')
             # find contours around region labels (can be non-contiguous):
-            sep_polygons, _ = masks2polygons(self.logger, seplines, None, element_bin,
-                                             name=f'{element_name} "{element.id}"',
-                                             open_holes=True, reorder=False)
+            sep_polygons, _ = masks2polygons(
+                self.logger, seplines, None, element_bin, name=element_name_id, open_holes=True, reorder=False)
             for sep_label, polygon, _ in sep_polygons:
                 # convert back to absolute (page) coordinates:
                 region_polygon = coordinates_for_segment(polygon, image, coords)
@@ -737,7 +730,7 @@ class OcropySegment(Processor):
                 element.add_SeparatorRegion(SeparatorRegionType(
                     id=region_id, Coords=CoordsType(points=points_from_polygon(region_polygon))))
             # annotate a text/image-separated image
-            element_array[sepmask] = np.amax(element_array) # clip to white/bg
+            element_array[sepmask] = np.amax(element_array)  # clip to white/bg
             image_clipped = array2pil(element_array)
             image_ref = AlternativeImageType(comments=coords['features'] + ',clipped')
             element.add_AlternativeImage(image_ref)
@@ -746,15 +739,14 @@ class OcropySegment(Processor):
             # get mask from region polygon:
             region_polygon = coordinates_of_segment(element, image, coords)
             region_mask = np.zeros_like(element_bin, bool)
-            region_mask[draw.polygon(region_polygon[:, 1],
-                                     region_polygon[:, 0],
-                                     region_mask.shape)] = True
+            region_mask[draw.polygon(
+                region_polygon[:, 1], region_polygon[:, 0], region_mask.shape)] = True
             # ensure the new line labels do not extrude from the region:
             line_labels = line_labels * region_mask
             # find contours around labels (can be non-contiguous):
-            line_polygons, _ = masks2polygons(self.logger, line_labels, baselines, element_bin,
-                                              name=f'region "{element.id}"',
-                                              min_area=640 / zoom / zoom)
+            line_polygons, _ = masks2polygons(
+                self.logger, line_labels, baselines, element_bin,
+                name=f'region "{element.id}"', min_area=640 / zoom / zoom)
             line_no = 0
             for line_label, polygon, baseline in line_polygons:
                 # convert back to absolute (page) coordinates:
@@ -772,9 +764,9 @@ class OcropySegment(Processor):
                     line.set_Baseline(BaselineType(points=points_from_polygon(line_baseline)))
                 element.add_TextLine(line)
             if not sep_bin.any():
-                return None # no derived image
+                return None  # no derived image
             # annotate a text/image-separated image
-            element_array[sep_bin] = np.amax(element_array) # clip to white/bg
+            element_array[sep_bin] = np.amax(element_array)  # clip to white/bg
             image_clipped = array2pil(element_array)
             image_ref = AlternativeImageType(comments=coords['features'] + ',clipped')
             element.add_AlternativeImage(image_ref)
