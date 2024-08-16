@@ -1,7 +1,9 @@
 from __future__ import absolute_import
+
+from typing import Optional
 from logging import Logger
-from os.path import join
 import itertools
+
 import numpy as np
 from scipy.sparse.csgraph import minimum_spanning_tree
 from skimage import draw
@@ -13,14 +15,21 @@ from shapely.ops import unary_union, nearest_points
 from shapely.validation import explain_validity
 from shapely import set_precision
 
-from ocrd_modelfactory import page_from_file
+from ocrd_utils import (
+    getLogger,
+    coordinates_of_segment,
+    coordinates_for_segment,
+    points_from_polygon,
+    polygon_from_points,
+)
 from ocrd_models.ocrd_page import (
-    to_xml, CoordsType,
+    CoordsType,
     TextLineType,
     TextRegionType,
     SeparatorRegionType,
     PageType,
-    AlternativeImageType
+    AlternativeImageType,
+    OcrdPage
 )
 from ocrd_models.ocrd_page_generateds import (
     BaselineType,
@@ -35,15 +44,7 @@ from ocrd_models.ocrd_page_generateds import (
     ReadingOrderType
 )
 from ocrd import Processor
-from ocrd_utils import (
-    getLogger,
-    make_file_id,
-    coordinates_of_segment,
-    coordinates_for_segment,
-    points_from_polygon,
-    polygon_from_points,
-    MIMETYPE_PAGE
-)
+from ocrd.processor import OcrdPageResult, OcrdPageResultImage
 
 from .ocrolib import midrange
 from .ocrolib import morph
@@ -252,10 +253,10 @@ class OcropySegment(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropySegment')
 
-    def process(self):
+    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
         """Segment pages into regions+lines, tables into cells+lines, or regions into lines.
         
-        Open and deserialise PAGE input files and their respective images,
+        Open and deserialise PAGE input file and its respective images,
         then iterate over the element hierarchy down to the requested level.
         
         Depending on ``level-of-operation``, consider existing segments:
@@ -327,182 +328,170 @@ class OcropySegment(Processor):
         overwrite_order = self.parameter['overwrite_order']
         oplevel = self.parameter['level-of-operation']
 
-        for (n, input_file) in enumerate(self.input_files):
-            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
-            file_id = make_file_id(input_file, self.output_file_grp)
+        pcgts = input_pcgts[0]
+        result = OcrdPageResult(pcgts)
+        page = pcgts.get_Page()
 
-            pcgts = page_from_file(self.workspace.download_file(input_file))
-            self.add_metadata(pcgts)
-            page_id = pcgts.pcGtsId or input_file.pageId or input_file.ID # (PageType has no id)
-            page = pcgts.get_Page()
-            
-            # TODO: also allow grayscale_normalized (try/except?)
-            page_image, page_coords, page_image_info = self.workspace.image_from_page(
-                page, page_id, feature_selector='binarized')
-            zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
+        # TODO: also allow grayscale_normalized (try/except?)
+        page_image, page_coords, page_image_info = self.workspace.image_from_page(
+            page, page_id, feature_selector='binarized')
+        zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
-            # aggregate existing regions so their foreground can be ignored
-            ignore = (page.get_ImageRegion() +
-                      page.get_LineDrawingRegion() +
-                      page.get_GraphicRegion() +
-                      page.get_ChartRegion() +
-                      page.get_MapRegion() +
-                      page.get_MathsRegion() +
-                      page.get_ChemRegion() +
-                      page.get_MusicRegion() +
-                      page.get_AdvertRegion() +
-                      page.get_NoiseRegion() +
-                      page.get_UnknownRegion() +
-                      page.get_CustomRegion())
-            if oplevel == 'page' and overwrite_separators:
-                page.set_SeparatorRegion([])
-            else:
-                ignore.extend(page.get_SeparatorRegion())
-            # prepare reading order
-            reading_order = dict()
-            ro = page.get_ReadingOrder()
-            if ro:
-                rogroup = ro.get_OrderedGroup() or ro.get_UnorderedGroup()
-                if rogroup:
-                    page_get_reading_order(reading_order, rogroup)
-            
-            # get segments to process / overwrite
-            if oplevel == 'page':
-                ignore.extend(page.get_TableRegion())
-                regions = list(page.get_TextRegion())
-                if regions:
-                    # page is already region-segmented
+        # aggregate existing regions so their foreground can be ignored
+        ignore = (page.get_ImageRegion() +
+                  page.get_LineDrawingRegion() +
+                  page.get_GraphicRegion() +
+                  page.get_ChartRegion() +
+                  page.get_MapRegion() +
+                  page.get_MathsRegion() +
+                  page.get_ChemRegion() +
+                  page.get_MusicRegion() +
+                  page.get_AdvertRegion() +
+                  page.get_NoiseRegion() +
+                  page.get_UnknownRegion() +
+                  page.get_CustomRegion())
+        if oplevel == 'page' and overwrite_separators:
+            page.set_SeparatorRegion([])
+        else:
+            ignore.extend(page.get_SeparatorRegion())
+        # prepare reading order
+        reading_order = dict()
+        ro = page.get_ReadingOrder()
+        if ro:
+            rogroup = ro.get_OrderedGroup() or ro.get_UnorderedGroup()
+            if rogroup:
+                page_get_reading_order(reading_order, rogroup)
+
+        # get segments to process / overwrite
+        if oplevel == 'page':
+            ignore.extend(page.get_TableRegion())
+            regions = list(page.get_TextRegion())
+            if regions:
+                # page is already region-segmented
+                if overwrite_regions:
+                    self.logger.info('removing existing TextRegions in page "%s"', page_id)
+                    # we could remove all other region types as well,
+                    # but this is more flexible (for workflows with
+                    # specialized separator/image/table detectors):
+                    page.set_TextRegion([])
+                    page.set_ReadingOrder(None)
+                    ro = None
+                else:
+                    self.logger.warning('keeping existing TextRegions in page "%s"', page_id)
+                    ignore.extend(regions)
+            # create reading order if necessary
+            if not ro or overwrite_order:
+                ro = ReadingOrderType()
+                page.set_ReadingOrder(ro)
+            rogroup = ro.get_OrderedGroup() or ro.get_UnorderedGroup()
+            if not rogroup:
+                # new top-level group
+                rogroup = OrderedGroupType(id="reading-order")
+                ro.set_OrderedGroup(rogroup)
+            if (not rogroup.get_RegionRefIndexed() and
+                not rogroup.get_OrderedGroupIndexed() and
+                not rogroup.get_UnorderedGroupIndexed()):
+                 # schema forbids empty OrderedGroup
+                ro.set_OrderedGroup(None)
+            # go get TextRegions with TextLines (and SeparatorRegions):
+            image = self._process_element(page, ignore, page_image, page_coords,
+                                          zoom=zoom, rogroup=rogroup)
+            if image:
+                result.images.append(image)
+            return result
+
+        if oplevel == 'table':
+            ignore.extend(page.get_TextRegion())
+            regions = list(page.get_TableRegion())
+            if not regions:
+                self.logger.warning('Page "%s" contains no table regions', page_id)
+            for region in regions:
+                subregions = region.get_TextRegion()
+                if subregions:
+                    # table is already cell-segmented
                     if overwrite_regions:
-                        self.logger.info('removing existing TextRegions in page "%s"', page_id)
-                        # we could remove all other region types as well,
-                        # but this is more flexible (for workflows with
-                        # specialized separator/image/table detectors):
-                        page.set_TextRegion([])
-                        page.set_ReadingOrder(None)
-                        ro = None
-                    else:
-                        self.logger.warning('keeping existing TextRegions in page "%s"', page_id)
-                        ignore.extend(regions)
-                # create reading order if necessary
-                if not ro or overwrite_order:
-                    ro = ReadingOrderType()
-                    page.set_ReadingOrder(ro)
-                rogroup = ro.get_OrderedGroup() or ro.get_UnorderedGroup()
-                if not rogroup:
-                    # new top-level group
-                    rogroup = OrderedGroupType(id="reading-order")
-                    ro.set_OrderedGroup(rogroup)
-                # go get TextRegions with TextLines (and SeparatorRegions):
-                self._process_element(page, ignore, page_image, page_coords,
-                                      page_id, file_id,
-                                      input_file.pageId, zoom, rogroup=rogroup)
-                if (not rogroup.get_RegionRefIndexed() and
-                    not rogroup.get_OrderedGroupIndexed() and
-                    not rogroup.get_UnorderedGroupIndexed()):
-                     # schema forbids empty OrderedGroup
-                    ro.set_OrderedGroup(None)
-            elif oplevel == 'table':
-                ignore.extend(page.get_TextRegion())
-                regions = list(page.get_TableRegion())
-                if not regions:
-                    self.logger.warning('Page "%s" contains no table regions', page_id)
-                for region in regions:
-                    subregions = region.get_TextRegion()
-                    if subregions:
-                        # table is already cell-segmented
-                        if overwrite_regions:
-                            self.logger.info('removing existing TextRegions in table "%s"', region.id)
-                            region.set_TextRegion([])
-                            roelem = reading_order.get(region.id)
-                            # replace by empty group with same index and ref
-                            # (which can then take the cells as subregions)
-                            reading_order[region.id] = page_subgroup_in_reading_order(self.logger, roelem)
-                        else:
-                            self.logger.warning('skipping table "%s" with existing TextRegions', region.id)
-                            continue
-                    # TODO: also allow grayscale_normalized (try/except?)
-                    region_image, region_coords = self.workspace.image_from_segment(
-                        region, page_image, page_coords, feature_selector='binarized')
-                    # ignore everything but the current table region
-                    subignore = regions + ignore
-                    subignore.remove(region)
-                    # create reading order group if necessary
-                    roelem = reading_order.get(region.id)
-                    if not roelem:
-                        self.logger.warning("Page '%s' table region '%s' is not referenced in reading order (%s)",
-                                    page_id, region.id, "no target to add cells to")
-                    elif overwrite_order:
-                        # replace by empty ordered group with same (index and) ref
+                        self.logger.info('removing existing TextRegions in table "%s"', region.id)
+                        region.set_TextRegion([])
+                        roelem = reading_order.get(region.id)
+                        # replace by empty group with same index and ref
                         # (which can then take the cells as subregions)
-                        roelem = page_subgroup_in_reading_order(self.logger, roelem)
-                        reading_order[region.id] = roelem
-                    elif isinstance(roelem, (OrderedGroupType, OrderedGroupIndexedType)):
-                        self.logger.warning("Page '%s' table region '%s' already has an ordered group (%s)",
-                                    page_id, region.id, "cells will be appended")
-                    elif isinstance(roelem, (UnorderedGroupType, UnorderedGroupIndexedType)):
-                        self.logger.warning("Page '%s' table region '%s' already has an unordered group (%s)",
-                                    page_id, region.id, "cells will not be appended")
-                        roelem = None
+                        reading_order[region.id] = page_subgroup_in_reading_order(self.logger, roelem)
                     else:
-                        # replace regionRef(Indexed) by group with same index and ref
-                        # (which can then take the cells as subregions)
-                        roelem = page_subgroup_in_reading_order(self.logger, roelem)
-                        reading_order[region.id] = roelem
-                    # go get TextRegions with TextLines (and SeparatorRegions)
-                    self._process_element(region, subignore, region_image, region_coords,
-                                          region.id, file_id + '_' + region.id,
-                                          input_file.pageId, zoom, rogroup=roelem)
-            else: # 'region'
-                regions = list(page.get_TextRegion())
-                # besides top-level text regions, line-segment any table cells,
-                # and for tables without any cells, add a pseudo-cell
-                for region in page.get_TableRegion():
-                    subregions = region.get_TextRegion()
-                    if subregions:
-                        regions.extend(subregions)
+                        self.logger.warning('skipping table "%s" with existing TextRegions', region.id)
+                        continue
+                # TODO: also allow grayscale_normalized (try/except?)
+                region_image, region_coords = self.workspace.image_from_segment(
+                    region, page_image, page_coords, feature_selector='binarized')
+                # ignore everything but the current table region
+                subignore = regions + ignore
+                subignore.remove(region)
+                # create reading order group if necessary
+                roelem = reading_order.get(region.id)
+                if not roelem:
+                    self.logger.warning("Page '%s' table region '%s' is not referenced in reading order (%s)",
+                                page_id, region.id, "no target to add cells to")
+                elif overwrite_order:
+                    # replace by empty ordered group with same (index and) ref
+                    # (which can then take the cells as subregions)
+                    roelem = page_subgroup_in_reading_order(self.logger, roelem)
+                    reading_order[region.id] = roelem
+                elif isinstance(roelem, (OrderedGroupType, OrderedGroupIndexedType)):
+                    self.logger.warning("Page '%s' table region '%s' already has an ordered group (%s)",
+                                page_id, region.id, "cells will be appended")
+                elif isinstance(roelem, (UnorderedGroupType, UnorderedGroupIndexedType)):
+                    self.logger.warning("Page '%s' table region '%s' already has an unordered group (%s)",
+                                page_id, region.id, "cells will not be appended")
+                    roelem = None
+                else:
+                    # replace regionRef(Indexed) by group with same index and ref
+                    # (which can then take the cells as subregions)
+                    roelem = page_subgroup_in_reading_order(self.logger, roelem)
+                    reading_order[region.id] = roelem
+                # go get TextRegions with TextLines (and SeparatorRegions)
+                image = self._process_element(region, subignore, region_image, region_coords,
+                                              zoom=zoom, rogroup=roelem)
+                if image:
+                    result.images.append(image)
+        else: # 'region'
+            regions = list(page.get_TextRegion())
+            # besides top-level text regions, line-segment any table cells,
+            # and for tables without any cells, add a pseudo-cell
+            for region in page.get_TableRegion():
+                subregions = region.get_TextRegion()
+                if subregions:
+                    regions.extend(subregions)
+                else:
+                    subregion = TextRegionType(id=region.id + '_text',
+                                               Coords=region.get_Coords(),
+                                               # as if generated from parser:
+                                               parent_object_=region)
+                    region.add_TextRegion(subregion)
+                    regions.append(subregion)
+            if not regions:
+                self.logger.warning('Page "%s" contains no text regions', page_id)
+            for region in regions:
+                if region.get_TextLine():
+                    if overwrite_lines:
+                        self.logger.info('removing existing TextLines in page "%s" region "%s"', page_id, region.id)
+                        region.set_TextLine([])
                     else:
-                        subregion = TextRegionType(id=region.id + '_text',
-                                                   Coords=region.get_Coords(),
-                                                   # as if generated from parser:
-                                                   parent_object_=region)
-                        region.add_TextRegion(subregion)
-                        regions.append(subregion)
-                if not regions:
-                    self.logger.warning('Page "%s" contains no text regions', page_id)
-                for region in regions:
-                    if region.get_TextLine():
-                        if overwrite_lines:
-                            self.logger.info('removing existing TextLines in page "%s" region "%s"', page_id, region.id)
-                            region.set_TextLine([])
-                        else:
-                            self.logger.warning('keeping existing TextLines in page "%s" region "%s"', page_id, region.id)
-                            ignore.extend(region.get_TextLine())
-                    # TODO: also allow grayscale_normalized (try/except?)
-                    region_image, region_coords = self.workspace.image_from_segment(
-                        region, page_image, page_coords, feature_selector='binarized')
-                    # if the region images have already been clipped against their neighbours specifically,
-                    # then we don't need to suppress all neighbours' foreground generally here
-                    if 'clipped' in region_coords['features'].split(','):
-                        ignore = []
-                    # go get TextLines
-                    self._process_element(region, ignore, region_image, region_coords,
-                                          region.id, file_id + '_' + region.id,
-                                          input_file.pageId, zoom)
+                        self.logger.warning('keeping existing TextLines in page "%s" region "%s"', page_id, region.id)
+                        ignore.extend(region.get_TextLine())
+                # TODO: also allow grayscale_normalized (try/except?)
+                region_image, region_coords = self.workspace.image_from_segment(
+                    region, page_image, page_coords, feature_selector='binarized')
+                # if the region images have already been clipped against their neighbours specifically,
+                # then we don't need to suppress all neighbours' foreground generally here
+                if 'clipped' in region_coords['features'].split(','):
+                    ignore = []
+                # go get TextLines
+                image = self._process_element(region, ignore, region_image, region_coords, zoom=zoom)
+                if image:
+                    result.images.append(image)
 
-            # update METS (add the PAGE file):
-            file_path = join(self.output_file_grp, file_id + '.xml')
-            pcgts.set_pcGtsId(file_id)
-            out = self.workspace.add_file(
-                ID=file_id,
-                file_grp=self.output_file_grp,
-                pageId=input_file.pageId,
-                local_filename=file_path,
-                mimetype=MIMETYPE_PAGE,
-                content=to_xml(pcgts))
-            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
-                     file_id, self.output_file_grp, out.local_filename)
+        return result
 
-    def _process_element(self, element, ignore, image, coords, element_id, file_id, page_id, zoom=1.0, rogroup=None):
+    def _process_element(self, element, ignore, image, coords, zoom=1.0, rogroup=None) -> Optional[OcrdPageResultImage]:
         """Add PAGE layout elements by segmenting an image.
 
         Given a PageType, TableRegionType or TextRegionType ``element``, and
@@ -521,15 +510,15 @@ class OcropySegment(Processor):
         newly detected separators to guide region segmentation.
         """
         if not image.width or not image.height:
-            self.logger.warning("Skipping '%s' with zero size", element_id)
-            return
+            self.logger.warning(f"Skipping '{element.id}' with zero size")
+            return None
         element_array = pil2array(image)
         element_bin = np.array(element_array <= midrange(element_array), bool)
         sep_bin = np.zeros_like(element_bin, bool)
         ignore_labels = np.zeros_like(element_bin, int)
         for i, segment in enumerate(ignore):
-            self.logger.debug('masking foreground of %s "%s" for "%s"',
-                      type(segment).__name__[:-4], segment.id, element_id)
+            self.logger.debug(f'masking foreground of {type(segment).__name__[:-4]} '
+                              f'"{segment.id}" for "{element.id}"')
             # mark these segments (e.g. separator regions, tables, images)
             # for workflows where they have been detected already;
             # these will be:
@@ -540,17 +529,16 @@ class OcropySegment(Processor):
             # negative/above-max indices), either fully or partially,
             # then this will silently ignore them. The caller does
             # not need to concern herself with this.
+            sp_row = segment_polygon[:, 1]
+            sp_col = segment_polygon[:, 0]
             if isinstance(segment, SeparatorRegionType):
-                sep_bin[draw.polygon(segment_polygon[:, 1],
-                                     segment_polygon[:, 0],
-                                     sep_bin.shape)] = True
-            ignore_labels[draw.polygon(segment_polygon[:, 1],
-                                       segment_polygon[:, 0],
-                                       ignore_labels.shape)] = i+1 # mapped back for RO
+                sep_bin[draw.polygon(sp_row, sp_col, sep_bin.shape)] = True
+            ignore_labels[draw.polygon(sp_row, sp_col, ignore_labels.shape)] = i+1 # mapped back for RO
         if isinstance(element, PageType):
             element_name = 'page'
             fullpage = True
             report = check_page(element_bin, zoom)
+            suffix = '.IMG-CLIP'
         elif isinstance(element, TableRegionType) or (
                 # sole/congruent text region of a table region?
                 element.id.endswith('_text') and
@@ -558,11 +546,13 @@ class OcropySegment(Processor):
             element_name = 'table'
             fullpage = True
             report = check_region(element_bin, zoom)
+            suffix = element.id + '.IMG-CLIP'
         else:
             element_name = 'region'
             fullpage = False
             report = check_region(element_bin, zoom)
-        self.logger.info('computing line segmentation for %s "%s"', element_name, element_id)
+            suffix = element.id + '.IMG-CLIP'
+        self.logger.info(f'computing line segmentation for {element_name} "{element.id}"')
         # TODO: we should downscale if DPI is large enough to save time
         try:
             if report:
@@ -570,9 +560,9 @@ class OcropySegment(Processor):
             line_labels, baselines, seplines, images, colseps, scale = compute_segmentation(
                 # suppress separators and ignored regions for textline estimation
                 # but keep them for h/v-line detection (in fullpage mode):
-                element_bin, seps=(sep_bin+ignore_labels)>0,
+                element_bin, seps=(sep_bin + ignore_labels) > 0,
                 zoom=zoom, fullpage=fullpage,
-                spread_dist=round(self.parameter['spread']/zoom*300/72), # in pt
+                spread_dist=round(self.parameter['spread'] / zoom * 300 / 72), # in pt
                 # these are ignored when not in fullpage mode:
                 maxcolseps=self.parameter['maxcolseps'],
                 maxseps=self.parameter['maxseps'],
@@ -580,16 +570,15 @@ class OcropySegment(Processor):
                 csminheight=self.parameter['csminheight'])
         except Exception as err:
             if isinstance(element, TextRegionType):
-                self.logger.error('Cannot line-segment region "%s": %s', element_id, err)
+                self.logger.error(f'Cannot line-segment region "{element.id}": {err}')
                 # as a fallback, add a single text line comprising the whole region:
-                element.add_TextLine(TextLineType(id=element_id + "_line", Coords=element.get_Coords()))
+                element.add_TextLine(TextLineType(id=element.id + "_line", Coords=element.get_Coords()))
             else:
-                self.logger.error('Cannot line-segment %s "%s": %s', element_name, element_id, err)
-            return
+                self.logger.error(f'Cannot line-segment {element_name} "{element.id}": {err}')
+            return None
 
-        self.logger.info('Found %d text lines for %s "%s"',
-                 len(np.unique(line_labels)) - 1,
-                 element_name, element_id)
+        self.logger.info(f'Found {len(np.unique(line_labels)) - 1} text lines '
+                         f'for {element_name} "{element.id}"')
         # post-process line labels
         if isinstance(element, (PageType, TableRegionType)):
             # aggregate text lines to text regions
@@ -598,7 +587,7 @@ class OcropySegment(Processor):
                 # i.e. identical line and region labels
                 # to detect their reading order among the others
                 # (these cannot be split or grouped together with other regions)
-                line_labels = np.where(line_labels, line_labels+len(ignore), ignore_labels)
+                line_labels = np.where(line_labels, line_labels + len(ignore), ignore_labels)
                 # suppress separators/images in fg and try to use for partitioning slices
                 sepmask = np.maximum(sep_bin, np.maximum(seplines > 0, images > 0))
                 region_labels = lines2regions(
@@ -610,19 +599,17 @@ class OcropySegment(Processor):
                     gap_height=self.parameter['gap_height'],
                     gap_width=self.parameter['gap_width'],
                     scale=scale, zoom=zoom)
-                self.logger.info('Found %d text regions for %s "%s"',
-                         len(np.unique(region_labels)) - 1,
-                         element_name, element_id)
+                self.logger.info(f'Found {len(np.unique(region_labels)) - 1} text regions '
+                                 f'for {element_name} "{element.id}"')
             except Exception as err:
-                self.logger.error('Cannot region-segment %s "%s": %s',
-                          element_name, element_id, err)
+                self.logger.error(f'Cannot region-segment {element_name} "{element.id}": {err}')
                 region_labels = np.where(line_labels > len(ignore), 1 + len(ignore), line_labels)
             
             # prepare reading order group index
             if rogroup:
                 if isinstance(rogroup, (OrderedGroupType, OrderedGroupIndexedType)):
                     index = 0
-                    # start counting from largest existing index
+                    # start counting from the largest existing index
                     for elem in (rogroup.get_RegionRefIndexed() +
                                  rogroup.get_OrderedGroupIndexed() +
                                  rogroup.get_UnorderedGroupIndexed()):
@@ -643,13 +630,12 @@ class OcropySegment(Processor):
                     # (no new region, no actual text lines)
                     region_line_labels0 = np.intersect1d(region_line_labels0, ignore_labels)
                     assert len(region_line_labels0) == 1, \
-                        "region label %d has both existing regions and new lines (%s)" % (
-                            region_label, str(region_line_labels0))
+                        (f'region label "{region_label}" has both existing regions and new lines '
+                         f'({str(region_line_labels0)})')
                     region = ignore[region_line_labels0[0] - 1]
                     if rogroup and region.parent_object_ is element and not isinstance(region, SeparatorRegionType):
                         index = page_add_to_reading_order(rogroup, region.id, index)
-                    self.logger.debug('Region label %d is for ignored region "%s"',
-                              region_label, region.id)
+                    self.logger.debug(f'Region label "{region_label}" is for ignored region "{region.id}"')
                     continue
                 # normal case: new lines inside new regions
                 # remove binary-empty labels, and re-order locally
@@ -662,13 +648,13 @@ class OcropySegment(Processor):
                 region_mask |= region_line_labels > 0
                 # find contours for region (can be non-contiguous)
                 regions, _ = masks2polygons(self.logger, region_mask * region_label, None, element_bin,
-                                            '%s "%s"' % (element_name, element_id),
-                                            min_area=6000/zoom/zoom,
+                                            name=f'{element_name} "{element.id}"',
+                                            min_area=6000 / zoom / zoom,
                                             simplify=ignore_labels * ~(sep_bin))
                 # find contours for lines (can be non-contiguous)
                 lines, _ = masks2polygons(self.logger, region_line_labels, baselines, element_bin,
-                                          'region "%s"' % element_id,
-                                          min_area=640/zoom/zoom)
+                                          name=f'region "{element.id}"',
+                                          min_area=640 / zoom / zoom)
                 # create new lines in new regions (allocating by intersection)
                 line_polys = [Polygon(polygon) for _, polygon, _ in lines]
                 for _, region_polygon, _ in regions:
@@ -677,15 +663,13 @@ class OcropySegment(Processor):
                     region_polygon = coordinates_for_segment(region_polygon, image, coords)
                     region_polygon = polygon_for_parent(region_polygon, element)
                     if region_polygon is None:
-                        self.logger.warning('Ignoring extant region contour for region label %d', region_label)
+                        self.logger.warning(f'Ignoring extant region contour for region label {region_label}')
                         continue
                     # annotate result:
                     region_no += 1
-                    region_id = element_id + "_region%04d" % region_no
-                    self.logger.debug('Region label %d becomes ID "%s"', region_label, region_id)
-                    region = TextRegionType(
-                        id=region_id, Coords=CoordsType(
-                        points=points_from_polygon(region_polygon)))
+                    region_id = element.id + "_region%04d" % region_no
+                    self.logger.debug(f'Region label {region_label} becomes ID "{region_id}"')
+                    region = TextRegionType(id=region_id, Coords=CoordsType(points=points_from_polygon(region_polygon)))
                     # find out which line (contours) belong to which region (contours)
                     line_no = 0
                     for i, line_poly in enumerate(line_polys):
@@ -696,15 +680,14 @@ class OcropySegment(Processor):
                         line_polygon = coordinates_for_segment(line_polygon, image, coords)
                         line_polygon = polygon_for_parent(line_polygon, region)
                         if line_polygon is None:
-                            self.logger.warning('Ignoring extant line contour for region label %d line label %d',
-                                        region_label, line_label)
+                            self.logger.warning(
+                                f'Ignoring extant line contour for region label {region_label} line label {line_label}')
                             continue
                         # annotate result:
                         line_no += 1
                         line_id = region_id + "_line%04d" % line_no
-                        self.logger.debug('Line label %d becomes ID "%s"', line_label, line_id)
-                        line = TextLineType(id=line_id,
-                                            Coords=CoordsType(points=points_from_polygon(line_polygon)))
+                        self.logger.debug(f'Line label {line_label} becomes ID "{line_id}"')
+                        line = TextLineType(id=line_id, Coords=CoordsType(points=points_from_polygon(line_polygon)))
                         if line_baseline:
                             line_baseline = coordinates_for_segment(line_baseline, image, coords)
                             line.set_Baseline(BaselineType(points=points_from_polygon(line_baseline)))
@@ -712,56 +695,52 @@ class OcropySegment(Processor):
                     # if the region has received text lines, keep it
                     if region.get_TextLine():
                         element.add_TextRegion(region)
-                        self.logger.info('Added region "%s" with %d lines for %s "%s"',
-                                 region_id, line_no, element_name, element_id)
+                        self.logger.info(f'Added region "{region_id}" with {line_no} lines '
+                                         f'for {element_name} "{element.id}"')
                         if rogroup:
                             index = page_add_to_reading_order(rogroup, region.id, index)
             # add additional image/non-text regions from compute_segmentation
             # (e.g. drop-capitals or images) ...
-            self.logger.info('Found %d large image regions for %s "%s"', images.max(), element_name, element_id)
+            self.logger.info(f'Found {images.max()} large image regions for {element_name} "{element.id}"')
             # find contours around region labels (can be non-contiguous):
             image_polygons, _ = masks2polygons(self.logger, images, None, element_bin,
-                                               '%s "%s"' % (element_name, element_id))
+                                               name=f'{element_name} "{element.id}"')
             for image_label, polygon, _ in image_polygons:
                 # convert back to absolute (page) coordinates:
                 region_polygon = coordinates_for_segment(polygon, image, coords)
                 region_polygon = polygon_for_parent(region_polygon, element)
                 if region_polygon is None:
-                    self.logger.warning('Ignoring extant region contour for image label %d', image_label)
+                    self.logger.warning(f'Ignoring extant region contour for image label {image_label}')
                     continue
                 region_no += 1
                 # annotate result:
-                region_id = element_id + "_image%04d" % region_no
+                region_id = element.id + "_image%04d" % region_no
                 element.add_ImageRegion(ImageRegionType(
-                    id=region_id, Coords=CoordsType(
-                    points=points_from_polygon(region_polygon))))
+                    id=region_id, Coords=CoordsType(points=points_from_polygon(region_polygon))))
             # split detected separator labels into separator regions:
-            self.logger.info('Found %d separators for %s "%s"', seplines.max(), element_name, element_id)
+            self.logger.info(f'Found {seplines.max()} separators for {element_name} "{element.id}"')
             # find contours around region labels (can be non-contiguous):
             sep_polygons, _ = masks2polygons(self.logger, seplines, None, element_bin,
-                                             '%s "%s"' % (element_name, element_id),
+                                             name=f'{element_name} "{element.id}"',
                                              open_holes=True, reorder=False)
             for sep_label, polygon, _ in sep_polygons:
                 # convert back to absolute (page) coordinates:
                 region_polygon = coordinates_for_segment(polygon, image, coords)
                 region_polygon = polygon_for_parent(region_polygon, element)
                 if region_polygon is None:
-                    self.logger.warning('Ignoring extant region contour for separator %d', sep_label)
+                    self.logger.warning(f'Ignoring extant region contour for separator {sep_label}')
                     continue
                 # annotate result:
                 region_no += 1
-                region_id = element_id + "_sep%04d" % region_no
+                region_id = element.id + "_sep%04d" % region_no
                 element.add_SeparatorRegion(SeparatorRegionType(
-                    id=region_id, Coords=CoordsType(
-                    points=points_from_polygon(region_polygon))))
+                    id=region_id, Coords=CoordsType(points=points_from_polygon(region_polygon))))
             # annotate a text/image-separated image
             element_array[sepmask] = np.amax(element_array) # clip to white/bg
             image_clipped = array2pil(element_array)
-            file_path = self.workspace.save_image_file(
-                image_clipped, file_id + '.IMG-CLIP', self.output_file_grp,
-                page_id=page_id)
-            element.add_AlternativeImage(AlternativeImageType(
-                filename=file_path, comments=coords['features'] + ',clipped'))
+            image_ref = AlternativeImageType(comments=coords['features'] + ',clipped')
+            element.add_AlternativeImage(image_ref)
+            return OcrdPageResultImage(image_clipped, suffix, image_ref)
         else:
             # get mask from region polygon:
             region_polygon = coordinates_of_segment(element, image, coords)
@@ -773,37 +752,32 @@ class OcropySegment(Processor):
             line_labels = line_labels * region_mask
             # find contours around labels (can be non-contiguous):
             line_polygons, _ = masks2polygons(self.logger, line_labels, baselines, element_bin,
-                                              'region "%s"' % element_id,
-                                              min_area=640/zoom/zoom)
+                                              name=f'region "{element.id}"',
+                                              min_area=640 / zoom / zoom)
             line_no = 0
             for line_label, polygon, baseline in line_polygons:
                 # convert back to absolute (page) coordinates:
                 line_polygon = coordinates_for_segment(polygon, image, coords)
                 line_polygon = polygon_for_parent(line_polygon, element)
                 if line_polygon is None:
-                    self.logger.warning('Ignoring extant line contour for line label %d',
-                                line_label)
+                    self.logger.warning(f'Ignoring extant line contour for line label {line_label}')
                     continue
                 # annotate result:
                 line_no += 1
-                line_id = element_id + "_line%04d" % line_no
-                line = TextLineType(id=line_id,
-                                    Coords=CoordsType(points=points_from_polygon(line_polygon)))
+                line_id = element.id + "_line%04d" % line_no
+                line = TextLineType(id=line_id, Coords=CoordsType(points=points_from_polygon(line_polygon)))
                 if baseline:
                     line_baseline = coordinates_for_segment(baseline, image, coords)
                     line.set_Baseline(BaselineType(points=points_from_polygon(line_baseline)))
                 element.add_TextLine(line)
             if not sep_bin.any():
-                return # no derived image
+                return None # no derived image
             # annotate a text/image-separated image
             element_array[sep_bin] = np.amax(element_array) # clip to white/bg
             image_clipped = array2pil(element_array)
-            file_path = self.workspace.save_image_file(
-                image_clipped, file_id + '.IMG-CLIP', self.output_file_grp,
-                page_id=page_id)
-            # update PAGE (reference the image file):
-            element.add_AlternativeImage(AlternativeImageType(
-                filename=file_path, comments=coords['features'] + ',clipped'))
+            image_ref = AlternativeImageType(comments=coords['features'] + ',clipped')
+            element.add_AlternativeImage(image_ref)
+            return OcrdPageResultImage(image_clipped, suffix, image_ref)
 
 def polygon_for_parent(polygon, parent):
     """Clip polygon to parent polygon range.

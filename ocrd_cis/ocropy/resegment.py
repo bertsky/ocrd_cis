@@ -1,24 +1,24 @@
 from __future__ import absolute_import
+
+from typing import Optional
 from logging import Logger
-from os.path import join
+
 import numpy as np
 from skimage import draw, segmentation
 from shapely.geometry import Polygon, LineString
 from shapely.prepared import prep
 
-from ocrd_modelfactory import page_from_file
-from ocrd_models.ocrd_page import BaselineType, PageType, to_xml
-from ocrd import Processor
 from ocrd_utils import (
     getLogger,
-    make_file_id,
     coordinates_of_segment,
     coordinates_for_segment,
     points_from_polygon,
     polygon_from_points,
     transform_coordinates,
-    MIMETYPE_PAGE
 )
+from ocrd_models.ocrd_page import BaselineType, PageType, OcrdPage
+from ocrd import Processor
+from ocrd.processor import OcrdPageResult
 
 from .ocrolib import midrange, morph
 from .common import (
@@ -52,10 +52,10 @@ class OcropyResegment(Processor):
     def setup(self):
         self.logger = getLogger('processor.OcropyResegment')
 
-    def process(self):
+    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
         """Resegment lines of the workspace.
 
-        Open and deserialise PAGE input files and their respective images,
+        Open and deserialise PAGE input file and its respective images,
         then iterate over the element hierarchy down to the line level.
 
         Next, get the page image according to the layout annotation (from
@@ -104,67 +104,47 @@ class OcropyResegment(Processor):
         # accuracy crucially depends on a good estimate of the images'
         # pixel density (at least if source input is not 300 DPI).
         level = self.parameter['level-of-operation']
+        pcgts = input_pcgts[0]
+        page = pcgts.get_Page()
 
-        for n, input_file in enumerate(self.input_files):
-            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
-            file_id = make_file_id(input_file, self.output_file_grp)
+        page_image, page_coords, page_image_info = self.workspace.image_from_page(
+            page, page_id, feature_selector='binarized')
+        zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
-            pcgts = page_from_file(self.workspace.download_file(input_file))
-            self.add_metadata(pcgts)
-            page_id = pcgts.pcGtsId or input_file.pageId or input_file.ID
-            page = pcgts.get_Page()
-
-            page_image, page_coords, page_image_info = self.workspace.image_from_page(
-                page, page_id, feature_selector='binarized')
-
-            zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
-
-            ignore = (page.get_ImageRegion() +
-                      page.get_LineDrawingRegion() +
-                      page.get_GraphicRegion() +
-                      page.get_ChartRegion() +
-                      page.get_MapRegion() +
-                      page.get_MathsRegion() +
-                      page.get_ChemRegion() +
-                      page.get_MusicRegion() +
-                      page.get_AdvertRegion() +
-                      page.get_NoiseRegion() +
-                      page.get_SeparatorRegion() +
-                      page.get_UnknownRegion() +
-                      page.get_CustomRegion())
-            regions = page.get_AllRegions(classes=['Text'])
-            if not regions:
-                self.logger.warning('Page "%s" contains no text regions', page_id)
-            elif level == 'page':
-                lines = [line for region in regions
-                         for line in region.get_TextLine()]
-                if lines:
-                    self._process_segment(page, page_image, page_coords, page_id, zoom, lines, ignore)
-                else:
-                    self.logger.warning('Page "%s" contains no text regions with lines', page_id)
+        ignore = (page.get_ImageRegion() +
+                  page.get_LineDrawingRegion() +
+                  page.get_GraphicRegion() +
+                  page.get_ChartRegion() +
+                  page.get_MapRegion() +
+                  page.get_MathsRegion() +
+                  page.get_ChemRegion() +
+                  page.get_MusicRegion() +
+                  page.get_AdvertRegion() +
+                  page.get_NoiseRegion() +
+                  page.get_SeparatorRegion() +
+                  page.get_UnknownRegion() +
+                  page.get_CustomRegion())
+        regions = page.get_AllRegions(classes=['Text'])
+        if not regions:
+            self.logger.warning('Page "%s" contains no text regions', page_id)
+        elif level == 'page':
+            lines = [line for region in regions
+                     for line in region.get_TextLine()]
+            if lines:
+                self._process_segment(page, page_image, page_coords, page_id, zoom, lines, ignore)
             else:
-                for region in regions:
-                    lines = region.get_TextLine()
-                    if lines:
-                        region_image, region_coords = self.workspace.image_from_segment(
-                            region, page_image, page_coords, feature_selector='binarized')
-                        self._process_segment(region, region_image, region_coords, page_id, zoom, lines, ignore)
-                    else:
-                        self.logger.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
-
-            # update METS (add the PAGE file):
-            file_path = join(self.output_file_grp, file_id + '.xml')
-            pcgts.set_pcGtsId(file_id)
-            out = self.workspace.add_file(
-                ID=file_id,
-                file_grp=self.output_file_grp,
-                pageId=input_file.pageId,
-                local_filename=file_path,
-                mimetype=MIMETYPE_PAGE,
-                content=to_xml(pcgts))
-            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
-                     file_id, self.output_file_grp, out.local_filename)
-
+                self.logger.warning('Page "%s" contains no text regions with lines', page_id)
+        else:
+            for region in regions:
+                lines = region.get_TextLine()
+                if lines:
+                    region_image, region_coords = self.workspace.image_from_segment(
+                        region, page_image, page_coords, feature_selector='binarized')
+                    self._process_segment(region, region_image, region_coords, page_id, zoom, lines, ignore)
+                else:
+                    self.logger.warning('Page "%s" region "%s" contains no text lines', page_id, region.id)
+        return OcrdPageResult(pcgts)
+ 
     def _process_segment(self, parent, parent_image, parent_coords, page_id, zoom, lines, ignore):
         threshold = self.parameter['min_fraction']
         method = self.parameter['method']

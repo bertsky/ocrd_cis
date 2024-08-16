@@ -1,23 +1,15 @@
 from __future__ import absolute_import
 from logging import Logger
-from os.path import join
+from typing import Optional
 import numpy as np
 
-from ocrd_utils import (
-    getLogger,
-    make_file_id,
-)
-from ocrd_modelfactory import page_from_file
-from ocrd_models.ocrd_page import (
-    to_xml, AlternativeImageType
-)
 from ocrd import Processor
-from ocrd_utils import MIMETYPE_PAGE
+from ocrd.processor import OcrdPageResult, OcrdPageResultImage
+from ocrd_utils import getLogger
+from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
 
 from .ocrolib import lineest
 from .common import array2pil, check_line, determine_zoom, pil2array
-
-#sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 class InvalidLine(Exception):
     """Line image does not allow dewarping and should be ignored."""
@@ -80,10 +72,10 @@ class OcropyDewarp(Processor):
                     #  and extra params)
                     0.3))
 
-    def process(self):
+    def process_page_pcgts(self, *input_pcgts : Optional[OcrdPage], page_id : Optional[str] = None) -> OcrdPageResult:
         """Dewarp the lines of the workspace.
 
-        Open and deserialise PAGE input files and their respective images,
+        Open and deserialise PAGE input file and its respective images,
         then iterate over the element hierarchy down to the TextLine level.
 
         Next, get each line image according to the layout annotation (from
@@ -99,71 +91,44 @@ class OcropyDewarp(Processor):
 
         Produce a new output file by serialising the resulting hierarchy.
         """
+        pcgts = input_pcgts[0]
+        result = OcrdPageResult(pcgts)
+        page = pcgts.get_Page()
 
-        for (n, input_file) in enumerate(self.input_files):
-            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
-            file_id = make_file_id(input_file, self.output_file_grp)
+        page_image, page_xywh, page_image_info = self.workspace.image_from_page(
+            page, page_id)
+        zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
-            pcgts = page_from_file(self.workspace.download_file(input_file))
-            self.add_metadata(pcgts)
-            page_id = pcgts.pcGtsId or input_file.pageId or input_file.ID # (PageType has no id)
-            page = pcgts.get_Page()
-                
-            page_image, page_xywh, page_image_info = self.workspace.image_from_page(
-                page, page_id)
+        regions = page.get_AllRegions(classes=['Text'], order='reading-order')
+        if not regions:
+            self.logger.warning('Page "%s" contains no text regions', page_id)
+        for region in regions:
+            region_image, region_xywh = self.workspace.image_from_segment(
+                region, page_image, page_xywh)
 
-            zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
+            lines = region.get_TextLine()
+            if not lines:
+                self.logger.warning('Region %s contains no text lines', region.id)
+            for line in lines:
+                line_image, line_xywh = self.workspace.image_from_segment(
+                    line, region_image, region_xywh)
 
-            regions = page.get_AllRegions(classes=['Text'], order='reading-order')
-            if not regions:
-                self.logger.warning('Page "%s" contains no text regions', page_id)
-            for region in regions:
-                region_image, region_xywh = self.workspace.image_from_segment(
-                    region, page_image, page_xywh)
-
-                lines = region.get_TextLine()
-                if not lines:
-                    self.logger.warning('Region %s contains no text lines', region.id)
-                for line in lines:
-                    line_image, line_xywh = self.workspace.image_from_segment(
-                        line, region_image, region_xywh)
-
-                    self.logger.info("About to dewarp page '%s' region '%s' line '%s'",
-                                     page_id, region.id, line.id)
-                    try:
-                        dew_image = dewarp(line_image, self.lnorm, check=True,
-                                           max_neighbour=self.parameter['max_neighbour'],
-                                           zoom=zoom)
-                    except InvalidLine as err:
-                        self.logger.error('cannot dewarp line "%s": %s', line.id, err)
-                        continue
-                    except InadequateLine as err:
-                        self.logger.warning('cannot dewarp line "%s": %s', line.id, err)
-                        # as a fallback, simply pad the image vertically
-                        # (just as dewarping would do on average, so at least
-                        #  this line has similar margins as the others):
-                        dew_image = padvert(line_image, self.parameter['range'])
-                    # update METS (add the image file):
-                    file_path = self.workspace.save_image_file(
-                        dew_image,
-                        file_id + '_' + region.id + '_' + line.id + '.IMG-DEWARP',
-                        self.output_file_grp,
-                        page_id=input_file.pageId)
-                    # update PAGE (reference the image file):
-                    alternative_image = line.get_AlternativeImage()
-                    line.add_AlternativeImage(AlternativeImageType(
-                        filename=file_path,
-                        comments=line_xywh['features'] + ',dewarped'))
-
-            # update METS (add the PAGE file):
-            file_path = join(self.output_file_grp, file_id + '.xml')
-            pcgts.set_pcGtsId(file_id)
-            out = self.workspace.add_file(
-                ID=file_id,
-                file_grp=self.output_file_grp,
-                pageId=input_file.pageId,
-                local_filename=file_path,
-                mimetype=MIMETYPE_PAGE,
-                content=to_xml(pcgts))
-            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
-                             file_id, self.output_file_grp, out.local_filename)
+                self.logger.info("About to dewarp page '%s' region '%s' line '%s'",
+                                 page_id, region.id, line.id)
+                try:
+                    dew_image = dewarp(line_image, self.lnorm, check=True,
+                                       max_neighbour=self.parameter['max_neighbour'],
+                                       zoom=zoom)
+                except InvalidLine as err:
+                    self.logger.error('cannot dewarp line "%s": %s', line.id, err)
+                    continue
+                except InadequateLine as err:
+                    self.logger.warning('cannot dewarp line "%s": %s', line.id, err)
+                    # as a fallback, simply pad the image vertically
+                    # (just as dewarping would do on average, so at least
+                    #  this line has similar margins as the others):
+                    dew_image = padvert(line_image, self.parameter['range'])
+                # update PAGE (reference the image file):
+                alt_image = AlternativeImageType(comments=line_xywh['features'] + ',dewarped')
+                line.add_AlternativeImage(alternative_image)
+                return OcrdPageResultImage(dew_image, region.id + '_' + line.id + '.IMG-DEWARP', alt_image)

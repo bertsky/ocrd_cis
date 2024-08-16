@@ -6,11 +6,10 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from ocrd.processor.ocrd_page_result import OcrdPageResult, OcrdPageResultImage
-
 from ocrd_utils import getLogger
 from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
 from ocrd import Processor
+from ocrd.processor import OcrdPageResult, OcrdPageResultImage
 
 from . import common
 from .common import array2pil, determine_zoom, pil2array, remove_noise
@@ -84,7 +83,8 @@ class OcropyBinarize(Processor):
 
         Reference each new image in the AlternativeImage of the element.
 
-        Return a PAGE-XML with AlternativeImage and the arguments for ``workspace.save_image_file``.
+        Return a PAGE-XML with new AlternativeImage(s) and the arguments
+        for ``workspace.save_image_file``.
         """
         level = self.parameter['level-of-operation']
         assert self.workspace
@@ -98,7 +98,6 @@ class OcropyBinarize(Processor):
         page_image, page_xywh, page_image_info = self.workspace.image_from_page(page, page_id, feature_filter='binarized')
         zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
-        result = OcrdPageResult(pcgts)
         if level == 'page':
             try:
                 result.images.append(self.process_page(page, page_image, page_xywh, zoom, page_id))
@@ -136,7 +135,6 @@ class OcropyBinarize(Processor):
         if not page_image.width or not page_image.height:
             raise ValueError(f"Skipping page '{page_id}' with zero size")
         self.logger.info(f"About to binarize page '{page_id}'")
-        assert self.output_file_grp
 
         features = page_xywh['features']
         if 'angle' in page_xywh and page_xywh['angle']:
@@ -166,15 +164,15 @@ class OcropyBinarize(Processor):
         orientation = 180 - (180 - orientation) % 360 # map to [-179.999,180]
         page.set_orientation(orientation)
         if self.parameter['grayscale']:
-            id_suffix = '.IMG-NRM'
+            suffix = '.IMG-NRM'
             features += ',grayscale_normalized'
         else:
-            id_suffix = '.IMG-BIN'
+            suffix = '.IMG-BIN'
             features += ',binarized'
         # update PAGE (reference the image file):
-        alternative_image = AlternativeImageType(comments=features)
-        page.add_AlternativeImage(alternative_image)
-        return OcrdPageResultImage(bin_image, id_suffix, alternative_image)
+        alt_image = AlternativeImageType(comments=features)
+        page.add_AlternativeImage(alt_image)
+        return OcrdPageResultImage(bin_image, suffix, alt_image)
 
     def process_region(self, region, region_image, region_xywh, zoom, page_id) -> OcrdPageResultImage:
         if not region_image.width or not region_image.height:
@@ -211,17 +209,17 @@ class OcropyBinarize(Processor):
         orientation = -region_xywh['angle']
         orientation = 180 - (180 - orientation) % 360 # map to [-179.999,180]
         region.set_orientation(orientation)
-        id_suffix = f'{region.id}'
+        suffix = f'{region.id}'
         if self.parameter['grayscale']:
-            id_suffix += '.IMG-NRM'
+            suffix += '.IMG-NRM'
             features += ',grayscale_normalized'
         else:
-            id_suffix += '.IMG-BIN'
+            suffix += '.IMG-BIN'
             features += ',binarized'
         # update PAGE (reference the image file):
-        alternative_image = AlternativeImageType(comments=features)
-        region.add_AlternativeImage(alternative_image)
-        return OcrdPageResultImage(bin_image, id_suffix, alternative_image)
+        alt_image = AlternativeImageType(comments=features)
+        region.add_AlternativeImage(alt_image)
+        return OcrdPageResultImage(bin_image, suffix, alt_image)
 
     def process_line(self, line, line_image, line_xywh, zoom, page_id, region_id) -> OcrdPageResultImage:
         if not line_image.width or not line_image.height:
@@ -248,14 +246,14 @@ class OcropyBinarize(Processor):
         bin_image = remove_noise(bin_image, maxsize=self.parameter['noise_maxsize'])
         if self.parameter['noise_maxsize']:
             features += ',despeckled'
-        id_suffix = f'{region_id}_{line.id}'
+        suffix = f'{region_id}_{line.id}'
         if self.parameter['grayscale']:
-            id_suffix += '.IMG-NRM'
+            suffix += '.IMG-NRM'
             features += ',grayscale_normalized'
         else:
-            id_suffix += '.IMG-BIN'
+            suffix += '.IMG-BIN'
             features += ',binarized'
         # update PAGE (reference the image file):
-        alternative_image = AlternativeImageType(comments=features)
-        line.add_AlternativeImage(alternative_image)
-        return OcrdPageResultImage(bin_image, id_suffix, alternative_image)
+        alt_image = AlternativeImageType(comments=features)
+        line.add_AlternativeImage(alt_image)
+        return OcrdPageResultImage(bin_image, suffix, alt_image)
