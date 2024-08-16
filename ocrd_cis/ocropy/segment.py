@@ -256,6 +256,73 @@ class OcropySegment(Processor):
         self.logger = getLogger('processor.OcropySegment')
 
     def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
+        """Segment pages into regions+lines, tables into cells+lines, or regions into lines.
+        Open and deserialise PAGE input files and their respective images,
+        then iterate over the element hierarchy down to the requested level.
+
+        Depending on ``level-of-operation``, consider existing segments:
+        - If ``overwrite_separators=True`` on ``page`` level, then
+          delete any SeparatorRegions.
+        - If ``overwrite_regions=True`` on ``page`` level, then
+          delete any top-level TextRegions (along with ReadingOrder).
+        - If ``overwrite_regions=True`` on ``table`` level, then
+          delete any TextRegions in TableRegions (along with their OrderGroup).
+        - If ``overwrite_lines=True`` on ``region`` level, then
+          delete any TextLines in TextRegions.
+        - If ``overwrite_order=True`` on ``page`` or ``table`` level, then
+          delete the reading order OrderedGroup entry corresponding
+          to the (page/table) segment.
+
+        Next, get each element image according to the layout annotation (from
+        the alternative image of the page/region, or by cropping via coordinates
+        into the higher-level image) in binarized form, and represent it as an array
+        with non-text regions and (remaining) text neighbours suppressed.
+
+        Then compute a text line segmentation for that array (as a label mask).
+        When ``level-of-operation`` is ``page`` or ``table``, this also entails
+        detecting
+        - up to ``maximages`` large foreground images,
+        - up to ``maxseps`` foreground line separators and
+        - up to ``maxcolseps`` background column separators
+        before text line segmentation itself, as well as aggregating text lines
+        to text regions afterwards.
+
+        Text regions are detected via a hybrid variant recursive X-Y cut algorithm
+        (RXYC): RXYC partitions the binarized image in top-down manner by detecting
+        horizontal or vertical gaps. This implementation uses the bottom-up text line
+        segmentation to guide the search, and also uses both pre-existing and newly
+        detected separators to alternatively partition the respective boxes into
+        non-rectangular parts.
+
+        During line segmentation, suppress the foreground of all previously annotated
+        regions (of any kind) and lines, except if just removed due to ``overwrite``.
+        During region aggregation however, combine the existing separators with the
+        new-found separators to guide the column search.
+
+        All detected segments (both text line and text region) are sorted according
+        to their reading order (assuming a top-to-bottom, left-to-right ordering).
+        When ``level-of-operation`` is ``page``, prefer vertical (column-first)
+        succession of regions. When it is ``table``, prefer horizontal (row-first)
+        succession of cells.
+
+        Then for each resulting segment label, convert its background mask into
+        polygon outlines by finding the outer contours consistent with the element's
+        polygon outline. Annotate the result by adding it as a new TextLine/TextRegion:
+        - If ``level-of-operation`` is ``region``, then append the new lines to the
+          parent region.
+        - If it is ``table``, then append the new lines to their respective regions,
+          and append the new regions to the parent table.
+          (Also, create an OrderedGroup for it as the parent's RegionRef.)
+        - If it is ``page``, then append the new lines to their respective regions,
+          and append the new regions to the page.
+          (Also, create an OrderedGroup for it in the ReadingOrder.)
+
+        Produce a new output file by serialising the resulting hierarchy.
+        """
+        # FIXME: allow passing a-priori info on reading order / textline order
+        # (and then pass on as ``bt`` and ``rl``; however, there may be a mixture
+        #  of different scripts; also, vertical writing needs internal rotation
+        #  because our line segmentation only works for horizontal writing)
         overwrite_lines = self.parameter['overwrite_lines']
         overwrite_regions = self.parameter['overwrite_regions']
         overwrite_separators = self.parameter['overwrite_separators']
@@ -416,256 +483,6 @@ class OcropySegment(Processor):
                 self._process_element(
                     region, ignore, region_image, region_coords, region.id, file_id + '_' + region.id, page_id, zoom)
         return OcrdPageResult(pcgts)
-
-    def process(self):
-        """Segment pages into regions+lines, tables into cells+lines, or regions into lines.
-        
-        Open and deserialise PAGE input files and their respective images,
-        then iterate over the element hierarchy down to the requested level.
-        
-        Depending on ``level-of-operation``, consider existing segments:
-        - If ``overwrite_separators=True`` on ``page`` level, then
-          delete any SeparatorRegions.
-        - If ``overwrite_regions=True`` on ``page`` level, then
-          delete any top-level TextRegions (along with ReadingOrder).
-        - If ``overwrite_regions=True`` on ``table`` level, then
-          delete any TextRegions in TableRegions (along with their OrderGroup).
-        - If ``overwrite_lines=True`` on ``region`` level, then
-          delete any TextLines in TextRegions.
-        - If ``overwrite_order=True`` on ``page`` or ``table`` level, then
-          delete the reading order OrderedGroup entry corresponding
-          to the (page/table) segment.
-        
-        Next, get each element image according to the layout annotation (from
-        the alternative image of the page/region, or by cropping via coordinates
-        into the higher-level image) in binarized form, and represent it as an array
-        with non-text regions and (remaining) text neighbours suppressed.
-        
-        Then compute a text line segmentation for that array (as a label mask).
-        When ``level-of-operation`` is ``page`` or ``table``, this also entails
-        detecting
-        - up to ``maximages`` large foreground images,
-        - up to ``maxseps`` foreground line separators and
-        - up to ``maxcolseps`` background column separators
-        before text line segmentation itself, as well as aggregating text lines
-        to text regions afterwards.
-        
-        Text regions are detected via a hybrid variant recursive X-Y cut algorithm
-        (RXYC): RXYC partitions the binarized image in top-down manner by detecting
-        horizontal or vertical gaps. This implementation uses the bottom-up text line
-        segmentation to guide the search, and also uses both pre-existing and newly
-        detected separators to alternatively partition the respective boxes into
-        non-rectangular parts.
-        
-        During line segmentation, suppress the foreground of all previously annotated
-        regions (of any kind) and lines, except if just removed due to ``overwrite``.
-        During region aggregation however, combine the existing separators with the
-        new-found separators to guide the column search.
-        
-        All detected segments (both text line and text region) are sorted according
-        to their reading order (assuming a top-to-bottom, left-to-right ordering).
-        When ``level-of-operation`` is ``page``, prefer vertical (column-first)
-        succession of regions. When it is ``table``, prefer horizontal (row-first)
-        succession of cells.
-        
-        Then for each resulting segment label, convert its background mask into
-        polygon outlines by finding the outer contours consistent with the element's
-        polygon outline. Annotate the result by adding it as a new TextLine/TextRegion:
-        - If ``level-of-operation`` is ``region``, then append the new lines to the
-          parent region.
-        - If it is ``table``, then append the new lines to their respective regions,
-          and append the new regions to the parent table.
-          (Also, create an OrderedGroup for it as the parent's RegionRef.)
-        - If it is ``page``, then append the new lines to their respective regions,
-          and append the new regions to the page.
-          (Also, create an OrderedGroup for it in the ReadingOrder.)
-        
-        Produce a new output file by serialising the resulting hierarchy.
-        """
-        # FIXME: allow passing a-priori info on reading order / textline order
-        # (and then pass on as ``bt`` and ``rl``; however, there may be a mixture
-        #  of different scripts; also, vertical writing needs internal rotation
-        #  because our line segmentation only works for horizontal writing)
-        overwrite_lines = self.parameter['overwrite_lines']
-        overwrite_regions = self.parameter['overwrite_regions']
-        overwrite_separators = self.parameter['overwrite_separators']
-        overwrite_order = self.parameter['overwrite_order']
-        oplevel = self.parameter['level-of-operation']
-
-        for (n, input_file) in enumerate(self.input_files):
-            self.logger.info("INPUT FILE %i / %s", n, input_file.pageId or input_file.ID)
-            file_id = make_file_id(input_file, self.output_file_grp)
-
-            pcgts = page_from_file(self.workspace.download_file(input_file))
-            self.add_metadata(pcgts)
-            page_id = pcgts.pcGtsId or input_file.pageId or input_file.ID # (PageType has no id)
-            page = pcgts.get_Page()
-
-            # TODO: also allow grayscale_normalized (try/except?)
-            page_image, page_coords, page_image_info = self.workspace.image_from_page(
-                page, page_id, feature_selector='binarized')
-            zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
-
-            # aggregate existing regions so their foreground can be ignored
-            ignore = (page.get_ImageRegion() +
-                      page.get_LineDrawingRegion() +
-                      page.get_GraphicRegion() +
-                      page.get_ChartRegion() +
-                      page.get_MapRegion() +
-                      page.get_MathsRegion() +
-                      page.get_ChemRegion() +
-                      page.get_MusicRegion() +
-                      page.get_AdvertRegion() +
-                      page.get_NoiseRegion() +
-                      page.get_UnknownRegion() +
-                      page.get_CustomRegion())
-            if oplevel == 'page' and overwrite_separators:
-                page.set_SeparatorRegion([])
-            else:
-                ignore.extend(page.get_SeparatorRegion())
-            # prepare reading order
-            reading_order = dict()
-            ro = page.get_ReadingOrder()
-            if ro:
-                rogroup = ro.get_OrderedGroup() or ro.get_UnorderedGroup()
-                if rogroup:
-                    page_get_reading_order(reading_order, rogroup)
-            
-            # get segments to process / overwrite
-            if oplevel == 'page':
-                ignore.extend(page.get_TableRegion())
-                regions = list(page.get_TextRegion())
-                if regions:
-                    # page is already region-segmented
-                    if overwrite_regions:
-                        self.logger.info('removing existing TextRegions in page "%s"', page_id)
-                        # we could remove all other region types as well,
-                        # but this is more flexible (for workflows with
-                        # specialized separator/image/table detectors):
-                        page.set_TextRegion([])
-                        page.set_ReadingOrder(None)
-                        ro = None
-                    else:
-                        self.logger.warning('keeping existing TextRegions in page "%s"', page_id)
-                        ignore.extend(regions)
-                # create reading order if necessary
-                if not ro or overwrite_order:
-                    ro = ReadingOrderType()
-                    page.set_ReadingOrder(ro)
-                rogroup = ro.get_OrderedGroup() or ro.get_UnorderedGroup()
-                if not rogroup:
-                    # new top-level group
-                    rogroup = OrderedGroupType(id="reading-order")
-                    ro.set_OrderedGroup(rogroup)
-                # go get TextRegions with TextLines (and SeparatorRegions):
-                self._process_element(page, ignore, page_image, page_coords,
-                                      page_id, file_id,
-                                      input_file.pageId, zoom, rogroup=rogroup)
-                if (not rogroup.get_RegionRefIndexed() and
-                    not rogroup.get_OrderedGroupIndexed() and
-                    not rogroup.get_UnorderedGroupIndexed()):
-                     # schema forbids empty OrderedGroup
-                    ro.set_OrderedGroup(None)
-            elif oplevel == 'table':
-                ignore.extend(page.get_TextRegion())
-                regions = list(page.get_TableRegion())
-                if not regions:
-                    self.logger.warning('Page "%s" contains no table regions', page_id)
-                for region in regions:
-                    subregions = region.get_TextRegion()
-                    if subregions:
-                        # table is already cell-segmented
-                        if overwrite_regions:
-                            self.logger.info('removing existing TextRegions in table "%s"', region.id)
-                            region.set_TextRegion([])
-                            roelem = reading_order.get(region.id)
-                            # replace by empty group with same index and ref
-                            # (which can then take the cells as subregions)
-                            reading_order[region.id] = page_subgroup_in_reading_order(self.logger, roelem)
-                        else:
-                            self.logger.warning('skipping table "%s" with existing TextRegions', region.id)
-                            continue
-                    # TODO: also allow grayscale_normalized (try/except?)
-                    region_image, region_coords = self.workspace.image_from_segment(
-                        region, page_image, page_coords, feature_selector='binarized')
-                    # ignore everything but the current table region
-                    subignore = regions + ignore
-                    subignore.remove(region)
-                    # create reading order group if necessary
-                    roelem = reading_order.get(region.id)
-                    if not roelem:
-                        self.logger.warning("Page '%s' table region '%s' is not referenced in reading order (%s)",
-                                    page_id, region.id, "no target to add cells to")
-                    elif overwrite_order:
-                        # replace by empty ordered group with same (index and) ref
-                        # (which can then take the cells as subregions)
-                        roelem = page_subgroup_in_reading_order(self.logger, roelem)
-                        reading_order[region.id] = roelem
-                    elif isinstance(roelem, (OrderedGroupType, OrderedGroupIndexedType)):
-                        self.logger.warning("Page '%s' table region '%s' already has an ordered group (%s)",
-                                    page_id, region.id, "cells will be appended")
-                    elif isinstance(roelem, (UnorderedGroupType, UnorderedGroupIndexedType)):
-                        self.logger.warning("Page '%s' table region '%s' already has an unordered group (%s)",
-                                    page_id, region.id, "cells will not be appended")
-                        roelem = None
-                    else:
-                        # replace regionRef(Indexed) by group with same index and ref
-                        # (which can then take the cells as subregions)
-                        roelem = page_subgroup_in_reading_order(self.logger, roelem)
-                        reading_order[region.id] = roelem
-                    # go get TextRegions with TextLines (and SeparatorRegions)
-                    self._process_element(region, subignore, region_image, region_coords,
-                                          region.id, file_id + '_' + region.id,
-                                          input_file.pageId, zoom, rogroup=roelem)
-            else: # 'region'
-                regions = list(page.get_TextRegion())
-                # besides top-level text regions, line-segment any table cells,
-                # and for tables without any cells, add a pseudo-cell
-                for region in page.get_TableRegion():
-                    subregions = region.get_TextRegion()
-                    if subregions:
-                        regions.extend(subregions)
-                    else:
-                        subregion = TextRegionType(id=region.id + '_text',
-                                                   Coords=region.get_Coords(),
-                                                   # as if generated from parser:
-                                                   parent_object_=region)
-                        region.add_TextRegion(subregion)
-                        regions.append(subregion)
-                if not regions:
-                    self.logger.warning('Page "%s" contains no text regions', page_id)
-                for region in regions:
-                    if region.get_TextLine():
-                        if overwrite_lines:
-                            self.logger.info('removing existing TextLines in page "%s" region "%s"', page_id, region.id)
-                            region.set_TextLine([])
-                        else:
-                            self.logger.warning('keeping existing TextLines in page "%s" region "%s"', page_id, region.id)
-                            ignore.extend(region.get_TextLine())
-                    # TODO: also allow grayscale_normalized (try/except?)
-                    region_image, region_coords = self.workspace.image_from_segment(
-                        region, page_image, page_coords, feature_selector='binarized')
-                    # if the region images have already been clipped against their neighbours specifically,
-                    # then we don't need to suppress all neighbours' foreground generally here
-                    if 'clipped' in region_coords['features'].split(','):
-                        ignore = []
-                    # go get TextLines
-                    self._process_element(region, ignore, region_image, region_coords,
-                                          region.id, file_id + '_' + region.id,
-                                          input_file.pageId, zoom)
-
-            # update METS (add the PAGE file):
-            file_path = join(self.output_file_grp, file_id + '.xml')
-            pcgts.set_pcGtsId(file_id)
-            out = self.workspace.add_file(
-                ID=file_id,
-                file_grp=self.output_file_grp,
-                pageId=input_file.pageId,
-                local_filename=file_path,
-                mimetype=MIMETYPE_PAGE,
-                content=to_xml(pcgts))
-            self.logger.info('created file ID: %s, file_grp: %s, path: %s',
-                     file_id, self.output_file_grp, out.local_filename)
 
     def _process_element(self, element, ignore, image, coords, element_id, file_id, page_id, zoom=1.0, rogroup=None):
         """Add PAGE layout elements by segmenting an image.
