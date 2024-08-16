@@ -47,8 +47,8 @@ class OcropyTrain(Processor):
             except SystemExit:
                 ocropydir = dirname(abspath(__file__))
                 self.modelpath = join(ocropydir, 'models', model)
-                self.logger.error(f"Failed to resolve model '{model}' path, trying '{modelpath}'")
-            if not isfile(modelpath):
+                self.logger.error(f"Failed to resolve model '{model}' path, trying '{self.modelpath}'")
+            if not isfile(self.modelpath):
                 self.logger.critical(f"Could not find model '{model}'.\n"
                                      f"Try 'ocrd resmgr download ocrd-cis-ocropy-recognize {model}'")
                 exit(1)
@@ -128,7 +128,7 @@ class OcropyTrain(Processor):
 
         if 'binarized' not in coords['features'].split(','):
             # binarize with nlbin
-            image, _ = binarize(image, maxskew=0)
+            image, _ = binarize(self.logger, image, maxskew=0)
 
         # resize image to 48 pixel height
         image = resize_keep_ratio(image)
