@@ -292,8 +292,9 @@ def propagate_labels_majority(image,labels):
     with the largest overlap."""
     rlabels,_ = label(image)
     cors = correspondences(rlabels,labels)
-    outputs = zeros(amax(rlabels)+1,'i')
-    counts = zeros(amax(rlabels)+1,'i')
+    amax_rlabels = amax(rlabels) + 1
+    outputs = zeros(amax_rlabels,'i')
+    counts = zeros(amax_rlabels,'i')
     for rlabel, label_, count in cors.T:
         if not rlabel or not label_:
             # ignore background correspondences
@@ -347,12 +348,13 @@ def all_neighbors(image, dist=1, bg=NaN):
     """Given an image with labels, find all pairs of labels
     that are directly (up to ``dist``) neighboring each other, ignoring the label ``bg``."""
     q = 100000
-    assert amax(image)<q
-    assert amin(image)>=0
-    u = unique(q*image+shift(image,(dist,0),order=0,cval=bg))
-    d = unique(q*image+shift(image,(-dist,0),order=0,cval=bg))
-    l = unique(q*image+shift(image,(0,dist),order=0,cval=bg))
-    r = unique(q*image+shift(image,(0,-dist),order=0,cval=bg))
+    assert amax(image) < q
+    assert amin(image) >= 0
+    q_image = q * image
+    u = unique(q_image + shift(image, (dist, 0), order=0, cval=bg))
+    d = unique(q_image + shift(image, (-dist, 0), order=0, cval=bg))
+    l = unique(q_image + shift(image, (0, dist), order=0, cval=bg))
+    r = unique(q_image + shift(image, (0, -dist), order=0, cval=bg))
     all = unique(r_[u,d,l,r])
     all = all[all!=bg]
     all = c_[all//q,all%q]
