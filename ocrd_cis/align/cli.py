@@ -16,6 +16,7 @@ from ocrd_utils import getLevelName
 from ocrd_models.ocrd_page import TextRegionType, TextEquivType
 from ocrd_cis import JavaAligner
 
+
 @click.command()
 @ocrd_cli_options
 def ocrd_cis_align(*args, **kwargs):
