@@ -184,19 +184,16 @@ def estimate_thresholds(flat, bignore=0.1, escale=1.0, lo=5, hi=90):
     d0, d1 = flat.shape
     o0, o1 = int(bignore * d0), int(bignore * d1)
     est = flat[o0:d0 - o0, o1:d1 - o1]
-
     if escale > 0:
         # by default, we use only regions that contain
         # significant variance; this makes the percentile
         # based low and high estimates more reliable
         e = escale
-        e_20_0 = e * 20.0
-        e_50 = int(e * 50)
-        v = est - filters.gaussian_filter(est, e_20_0)
-        v = filters.gaussian_filter(v ** 2, e_20_0) ** 0.5
+        v = est - filters.gaussian_filter(est, e*20.0)
+        v = filters.gaussian_filter(v ** 2, e*20.0) ** 0.5
         v = (v > 0.3 * np.amax(v))
-        v = morphology.binary_dilation(v, structure=np.ones((e_50, 1)))
-        v = morphology.binary_dilation(v, structure=np.ones((1, e_50)))
+        v = morphology.binary_dilation(v, structure=np.ones((int(e * 50), 1)))
+        v = morphology.binary_dilation(v, structure=np.ones((1, int(e * 50))))
         est = est[v]
     lo = stats.scoreatpercentile(est.ravel(), lo)
     hi = stats.scoreatpercentile(est.ravel(), hi)
@@ -313,24 +310,24 @@ def check_line(binary, zoom=1.0):
 
     Returns an error report, or None if valid.
     """
-    if np.prod(binary.shape) == 0: return "image dimensions are zero"
-    if len(binary.shape) == 3: return f"image is not monochrome {binary.shape}"
+    if np.prod(binary.shape)==0: return "image dimensions are zero"
+    if len(binary.shape)==3: return "image is not monochrome %s"%(binary.shape,)
     if np.amax(binary)==np.amin(binary): return "image is blank"
     if np.mean(binary)<np.median(binary): return "image may be inverted"
     h,w = binary.shape
-    if h<20/zoom: return f"image not tall enough for a text line {binary.shape}"
-    if h>200/zoom: return f"image too tall for a text line {binary.shape}"
+    if h<20/zoom: return "image not tall enough for a text line %s"%(binary.shape,)
+    if h>200/zoom: return "image too tall for a text line %s"%(binary.shape,)
     ##if w<1.5*h: return "line too short %s"%(binary.shape,)
-    if w<1.5*h and w<32/zoom: return f"image too short for a line image {binary.shape}"
-    if w>4000/zoom: return f"image too long for a line image {binary.shape}"
+    if w<1.5*h and w<32/zoom: return "image too short for a line image %s"%(binary.shape,)
+    if w>4000/zoom: return "image too long for a line image %s"%(binary.shape,)
     return None
     ratio = w*1.0/h
     _, ncomps = measurements.label(binary)
     lo = int(0.5*ratio+0.5)
     hi = int(4*ratio)+1
-    if ncomps<lo: return f"too few connected components (got {ncomps}, wanted >={lo})"
-    ##if ncomps>hi*ratio: return f"too many connected components (got {ncomps}, wanted <={hi})"
-    if ncomps>hi*ratio and ncomps>10: return f"too many connected components (got {ncomps}, wanted <={hi})"
+    if ncomps<lo: return "too few connected components (got %d, wanted >=%d)"%(ncomps,lo)
+    ##if ncomps>hi*ratio: return "too many connected components (got %d, wanted <=%d)"%(ncomps,hi)
+    if ncomps>hi*ratio and ncomps>10: return "too many connected components (got %d, wanted <=%d)"%(ncomps,hi)
     return None
 
 # inspired by ocropus-gpageseg check_page
@@ -344,21 +341,21 @@ def check_region(binary, zoom=1.0):
 
     Returns an error report, or None if valid.
     """
-    if np.prod(binary.shape) == 0: return "image dimensions are zero"
-    if len(binary.shape) == 3: return f"image is not monochrome {binary.shape}"
+    if np.prod(binary.shape)==0: return "image dimensions are zero"
+    if len(binary.shape)==3: return "image is not monochrome %s"%(binary.shape,)
     if np.amax(binary)==np.amin(binary): return "image is blank"
     if np.mean(binary)<np.median(binary): return "image may be inverted"
     h,w = binary.shape
-    if h<45/zoom: return f"image not tall enough for a region image {binary.shape}"
-    if h>5000/zoom: return f"image too tall for a region image {binary.shape}"
-    if w<100/zoom: return f"image too narrow for a region image {binary.shape}"
-    if w>5000/zoom: return f"image too wide for a region image {binary.shape}"
+    if h<45/zoom: return "image not tall enough for a region image %s"%(binary.shape,)
+    if h>5000/zoom: return "image too tall for a region image %s"%(binary.shape,)
+    if w<100/zoom: return "image too narrow for a region image %s"%(binary.shape,)
+    if w>5000/zoom: return "image too wide for a region image %s"%(binary.shape,)
     return None
     # zoom factor (DPI relative) and 4 (against fragmentation from binarization)
     slots = int(w*h*1.0/(30*30)*zoom*zoom) * 4
     _,ncomps = measurements.label(binary)
-    if ncomps<5: return f"too few connected components for a region image (got {ncomps})"
-    if ncomps>slots and ncomps>10: return f"too many connected components for a region image ({ncomps} > {slots})"
+    if ncomps<5: return "too few connected components for a region image (got %d)"%(ncomps,)
+    if ncomps>slots and ncomps>10: return "too many connected components for a region image (%d > %d)"%(ncomps,slots)
     return None
 
 # from ocropus-gpageseg, but with zoom parameter
@@ -372,21 +369,21 @@ def check_page(binary, zoom=1.0):
 
     Returns an error report, or None if valid.
     """
-    if np.prod(binary.shape) == 0: return "image dimensions are zero"
-    if len(binary.shape) == 3: return f"image not monochrome {binary.shape}"
+    if np.prod(binary.shape)==0: return "image dimensions are zero"
+    if len(binary.shape)==3: return "image not monochrome %s"%(binary.shape,)
     if np.amax(binary)==np.amin(binary): return "image is blank"
     if np.mean(binary)<np.median(binary): return "image may be inverted"
     h,w = binary.shape
-    if h<600/zoom: return f"image not tall enough for a page image {binary.shape}"
-    if h>20000/zoom: return f"image too tall for a page image {binary.shape}"
-    if w<600/zoom: return f"image too narrow for a page image {binary.shape}"
-    if w>20000/zoom: return f"image too wide for a page image {binary.shape}"
+    if h<600/zoom: return "image not tall enough for a page image %s"%(binary.shape,)
+    if h>20000/zoom: return "image too tall for a page image %s"%(binary.shape,)
+    if w<600/zoom: return "image too narrow for a page image %s"%(binary.shape,)
+    if w>20000/zoom: return "image too wide for a page image %s"%(binary.shape,)
     return None
     # zoom factor (DPI relative) and 4 (against fragmentation from binarization)
     slots = int(w*h*1.0/(30*30)*zoom*zoom) * 4
     _,ncomps = measurements.label(binary)
-    if ncomps<10: return f"too few connected components for a page image (got {ncomps})"
-    if ncomps>slots and ncomps>10: return f"too many connected components for a page image ({ncomps} > {slots})"
+    if ncomps<10: return "too few connected components for a page image (got %d)"%(ncomps,)
+    if ncomps>slots and ncomps>10: return "too many connected components for a page image (%d > %d)"%(ncomps,slots)
     return None
 
 def odd(num):
@@ -479,13 +476,8 @@ def compute_images(binary, scale, maximages=5):
     #images = morph.rb_closing(images, (d0,d1))
     #DSAVE('images1_closed', images+0.6*binary)
     # 1- filter largest connected components
-    binary_0_6 = 0.6 * binary
-    odd_scale = odd(scale)
-    odd_half_scale = odd(scale / 2)
-    odd_doubled_scale = odd(2 * scale)
-    region_min = (4 * scale) ** 2
-    images = morph.select_regions(images, sl.area, min=region_min, nbest=2 * maximages)
-    DSAVE('images1_large', images + binary_0_6)
+    images = morph.select_regions(images,sl.area,min=(4*scale)**2,nbest=2*maximages)
+    DSAVE('images1_large', images+0.6*binary)
     if not images.any():
         return np.zeros_like(binary, int)
     # 2- open horizontally and vertically to suppress
@@ -494,31 +486,31 @@ def compute_images(binary, scale, maximages=5):
     #    single frame, because then the hull polygon
     #    can cover/overlap large text/table parts which
     #    we cannot discern from the actual image anymore
-    h_opened = morph.rb_opening(images, (1, odd_half_scale))
-    DSAVE('images2_h-opened', h_opened + binary_0_6)
-    v_opened = morph.rb_opening(images, (odd_half_scale, 1))
-    DSAVE('images2_v-opened', v_opened + binary_0_6)
+    h_opened = morph.rb_opening(images, (1, odd(scale/2)))
+    DSAVE('images2_h-opened', h_opened+0.6*binary)
+    v_opened = morph.rb_opening(images, (odd(scale/2), 1))
+    DSAVE('images2_v-opened', v_opened+0.6*binary)
     # 3- close whatever remains
-    closed = morph.rb_closing(h_opened&v_opened, (odd_doubled_scale, odd_doubled_scale))
-    DSAVE('images3_closed', closed + binary_0_6)
+    closed = morph.rb_closing(h_opened&v_opened, (odd(2*scale), odd(2*scale)))
+    DSAVE('images3_closed', closed + 0.6*binary)
     # 4- reconstruct the losses up to a certain distance
     #    to avoid creeping into pure h/v-lines again but still
     #    cover most of the large object
     #images = np.where(images, closed, 2)
     #images = morph.spread_labels(images, maxdist=scale) % 2 | closed
     images = morph.rb_reconstruction(closed, images, step=2, maxsteps=scale)
-    DSAVE('images4_reconstructed', images + binary_0_6)
+    DSAVE('images4_reconstructed', images+0.6*binary)
     # 5- select nbest
-    images = morph.select_regions(images, sl.area, min=region_min, nbest=maximages)
-    DSAVE('images5_selected', images + binary_0_6)
+    images = morph.select_regions(images, sl.area, min=(4*scale)**2, nbest=maximages)
+    DSAVE('images5_selected', images+0.6*binary)
     if not images.any():
         return np.zeros_like(binary, int)
     # 6- dilate a little to get a smooth contour without gaps
-    dilated = morph.r_dilation(images, (odd_scale, odd_scale))
+    dilated = morph.r_dilation(images, (odd(scale), odd(scale)))
     images = morph.propagate_labels_majority(binary, dilated+1)
     images = morph.spread_labels(images, maxdist=scale)==2
     images, _ = morph.label(images)
-    DSAVE('images6_dilated', images + binary_0_6)
+    DSAVE('images6_dilated', images+0.6*binary)
     # we could repeat reconstruct-dilate here...
     return images
 
@@ -556,7 +548,6 @@ def compute_seplines(binary, scale, maxseps=0):
     sepsizes = [0]
     sepslices = [None]
     sepdists = [0]
-    doubled_scale = 2 * scale
     for label in range(1, nlabels + 1):
         labelslice = slices[label]
         labelmask = labels == label
@@ -608,8 +599,8 @@ def compute_seplines(binary, scale, maxseps=0):
                 binmask = sublabels == bin + 1
                 binlabels, nbinlabels = morph.label(binmask)
                 _, binlabelcounts = np.unique(binlabels, return_counts=True)
-                largemask = (binlabelcounts > doubled_scale)[binlabels]
-                smallmask = (binlabelcounts <= doubled_scale)[binlabels]
+                largemask = (binlabelcounts > 2 * scale)[binlabels]
+                smallmask = (binlabelcounts <= 2 * scale)[binlabels]
                 sublabels2[binmask & smallmask] = 1
                 if not np.any(binmask & largemask):
                     continue
@@ -1852,13 +1843,11 @@ def lines2regions(binary, llabels,
             else:
                 llab[box] = lbinary[box]
             # show projection at the sides
-            log_y = -10 * np.log(y + 1e-9)
-            log_x = -10 * np.log(x + 1e-9)
-            for i in range(int(scale / 2)):
-                llab[box[0], box[1].start + i] = log_y
-                llab[box[0], box[1].stop - 1 - i] = log_y
-                llab[box[0].start + i, box[1]] = log_x
-                llab[box[0].stop - 1 - i, box[1]] = log_x
+            for i in range(int(scale/2)):
+                llab[box[0],box[1].start+i] = -10*np.log(y+1e-9)
+                llab[box[0],box[1].stop-1-i] = -10*np.log(y+1e-9)
+                llab[box[0].start+i,box[1]] = -10*np.log(x+1e-9)
+                llab[box[0].stop-1-i,box[1]] = -10*np.log(x+1e-9)
             DSAVE('recursive_x_y_cut_' + (partition_type or 'sliced'), llab)
         gap_weights = list()
         for is_horizontal, profile in enumerate([y, x]):
@@ -1888,19 +1877,19 @@ def lines2regions(binary, llabels,
                 weights = weights * (1 + 0.5 * props['peak_heights']/gap_height)
             gap_weights.append((gaps, weights))
             if debug:
-                orientation = 'horizontal' if is_horizontal else 'vertical'
-                LOG.debug(f'  {orientation} gaps {gaps} {props} weights {weights}')
+                LOG.debug('  {} gaps {} {} weights {}'.format(
+                    'horizontal' if is_horizontal else 'vertical',
+                    gaps, props, weights))
                 if not gaps.shape[0]:
                     continue
-                half_scale = int(scale / 2)
                 for start, stop, height in sorted(zip(
                         props['left_ips'].astype(int),
                         props['right_ips'].astype(int),
                         props['peak_heights']), key=lambda x: x[2]):
                     if is_horizontal:
-                        llab[box[0].start+half_scale:box[0].stop-half_scale,box[1].start+start:box[1].start+stop] = -10*np.log(-height+1e-9)
+                        llab[box[0].start+int(scale/2):box[0].stop-int(scale/2),box[1].start+start:box[1].start+stop] = -10*np.log(-height+1e-9)
                     else:
-                        llab[box[0].start+start:box[0].start+stop,box[1].start+half_scale:box[1].stop-half_scale] = -10*np.log(-height+1e-9)
+                        llab[box[0].start+start:box[0].start+stop,box[1].start+int(scale/2):box[1].stop-int(scale/2)] = -10*np.log(-height+1e-9)
                 DSAVE('recursive_x_y_cut_gaps_' + ('h' if is_horizontal else 'v'), llab)
         # heuristic (not strict) decision on x or y cut,
         # factors to consider:
@@ -1927,27 +1916,32 @@ def lines2regions(binary, llabels,
         #   are not allowed
         y_gaps, y_weights = gap_weights[0][0], gap_weights[0][1]
         x_gaps, x_weights = gap_weights[1][0], gap_weights[1][1]
-        if debug: LOG.debug(f'   all y_gaps {y_gaps} x_gaps {x_gaps}')
+        if debug: LOG.debug('   all y_gaps {} x_gaps {}'.format(y_gaps, x_gaps))
         # suppress cuts that significantly split any line labels
-        min_line_scale = min_line * scale
         y_allowed = [not(np.any(np.intersect1d(
             # significant line labels above
-            np.nonzero(np.bincount(lbin[:gap,:].flatten(), minlength=len(objects))[1:] > min_line_scale)[0],
+            np.nonzero(np.bincount(lbin[:gap,:].flatten(),
+                                   minlength=len(objects))[1:] > min_line * scale)[0],
             # significant line labels below
-            np.nonzero(np.bincount(lbin[gap:,:].flatten(), minlength=len(objects))[1:] > min_line_scale)[0],
-            assume_unique=True))) for gap in y_gaps]
+            np.nonzero(np.bincount(lbin[gap:,:].flatten(),
+                                   minlength=len(objects))[1:] > min_line * scale)[0],
+            assume_unique=True)))
+                        for gap in y_gaps]
         x_allowed = [not(np.any(np.intersect1d(
             # significant line labels left
-            np.nonzero(np.bincount(lbin[:,:gap].flatten(), minlength=len(objects))[1:] > min_line_scale)[0],
+            np.nonzero(np.bincount(lbin[:,:gap].flatten(),
+                                   minlength=len(objects))[1:] > min_line * scale)[0],
             # significant line labels right
-            np.nonzero(np.bincount(lbin[:,gap:].flatten(), minlength=len(objects))[1:] > min_line_scale)[0],
-            assume_unique=True))) for gap in x_gaps]
+            np.nonzero(np.bincount(lbin[:,gap:].flatten(),
+                                   minlength=len(objects))[1:] > min_line * scale)[0],
+            assume_unique=True)))
+                        for gap in x_gaps]
         y_gaps, y_weights = y_gaps[y_allowed], y_weights[y_allowed]
         x_gaps, x_weights = x_gaps[x_allowed], x_weights[x_allowed]
-        if debug: LOG.debug(f'   allowed y_gaps {y_gaps} x_gaps {x_gaps}')
+        if debug: LOG.debug('   allowed y_gaps {} x_gaps {}'.format(y_gaps, x_gaps))
         y_prominence = np.amax(y_weights, initial=0)
         x_prominence = np.amax(x_weights, initial=0)
-        if debug: LOG.debug(f'   y_prominence {y_prominence} x_prominence {x_prominence}')
+        if debug: LOG.debug('   y_prominence {} x_prominence {}'.format(y_prominence, x_prominence))
         # suppress less prominent peaks (another heuristic...)
         # they must compete with the other direction next time
         # (when already new cuts or partitions will become visible)
@@ -1955,30 +1949,33 @@ def lines2regions(binary, llabels,
         x_allowed = x_weights > 0.8 * x_prominence
         y_gaps, y_weights = y_gaps[y_allowed], y_weights[y_allowed]
         x_gaps, x_weights = x_gaps[x_allowed], x_weights[x_allowed]
-        if debug: LOG.debug(f'   prominent y_gaps {y_gaps} x_gaps {x_gaps}')
+        if debug: LOG.debug('   prominent y_gaps {} x_gaps {}'.format(y_gaps, x_gaps))
         if npartitions > 0:
             # TODO this can be avoided when backtracking below
             # suppress peaks creating fewer partitions than others --
             # how large in our preferred direction will the new partitions
             # of sepmask in both slices created by each cut candidate
             # add up?
-            y_partitionscores = [sum(map(
-                sl.height if prefer_vertical else sl.width,
-                morph.find_objects(morph.label(partitions[:gap, :] > 0)[0]) +
-                morph.find_objects(morph.label(partitions[gap:, :] > 0)[0])))
-                for gap in y_gaps]
-            x_partitionscores = [sum(map(
-                sl.height if prefer_vertical else sl.width,
-                morph.find_objects(morph.label(partitions[:, : gap] > 0)[0]) +
-                morph.find_objects(morph.label(partitions[:, gap :] > 0)[0])))
-                for gap in x_gaps]
-            if debug: LOG.debug(f'   y_partitionscores {y_partitionscores} x_partitionscores {x_partitionscores}')
+            y_partitionscores = [sum(map(sl.height if prefer_vertical else sl.width,
+                                         morph.find_objects(morph.label(
+                                             partitions[:gap,:]>0)[0]) +
+                                         morph.find_objects(morph.label(
+                                             partitions[gap:,:]>0)[0])))
+                                 for gap in y_gaps]
+            x_partitionscores = [sum(map(sl.height if prefer_vertical else sl.width,
+                                         morph.find_objects(morph.label(
+                                             partitions[:,:gap]>0)[0]) +
+                                         morph.find_objects(morph.label(
+                                             partitions[:,gap:]>0)[0])))
+                                 for gap in x_gaps]
+            if debug: LOG.debug('   y_partitionscores {} x_partitionscores {}'.format(
+                y_partitionscores, x_partitionscores))
             # Now identify those gaps with the largest overall score
             y_allowed = y_partitionscores == np.max(y_partitionscores, initial=0)
             x_allowed = x_partitionscores == np.max(x_partitionscores, initial=0)
             y_gaps, y_weights = y_gaps[y_allowed], y_weights[y_allowed]
             x_gaps, x_weights = x_gaps[x_allowed], x_weights[x_allowed]
-            if debug: LOG.debug(f'   most partitioning y_gaps {y_gaps} x_gaps {x_gaps}')
+            if debug: LOG.debug('   most partitioning y_gaps {} x_gaps {}'.format(y_gaps, x_gaps))
         else:
             y_partitionscores = None
             x_partitionscores = None
@@ -1989,7 +1986,7 @@ def lines2regions(binary, llabels,
         x_allowed = x_weights > 0.9 * x_prominence
         y_gaps, y_weights = y_gaps[y_allowed], y_weights[y_allowed]
         x_gaps, x_weights = x_gaps[x_allowed], x_weights[x_allowed]
-        if debug: LOG.debug(f'   prominent y_gaps {y_gaps} x_gaps {x_gaps}')
+        if debug: LOG.debug('   prominent y_gaps {} x_gaps {}'.format(y_gaps, x_gaps))
         
         # decide which direction, x or y
         # TODO: this most likely needs a backtracking mechanism
@@ -2055,7 +2052,7 @@ def lines2regions(binary, llabels,
                     llab2[box] = partitions
                 DSAVE('recursive_x_y_cut_partitions', llab2)
             for label in range(1, npartitions+1):
-                LOG.debug(f'next partition %d on %s', label, box)
+                LOG.debug('next partition %d on %s', label, box)
                 recursive_x_y_cut(box, mask=partitions==label, partition_type=new_partition_type)
             return
         
@@ -2063,9 +2060,10 @@ def lines2regions(binary, llabels,
             # no gaps left
             finalize()
             return
-        orientation = 'vertical' if choose_vertical else 'horizontal'
         # otherwise: cut on gaps
-        LOG.debug(f'cutting {orientation}ly on {box} into {gaps}')
+        LOG.debug('cutting %s on %s into %s', 'vertically'
+        if choose_vertical else 'horizontally',
+                  box, gaps)
         cuts = list(zip(np.insert(gaps, 0, 0), np.append(gaps, lim)))
         if choose_vertical:
             if rl:
@@ -2080,7 +2078,9 @@ def lines2regions(binary, llabels,
                 sub = sl.box(0, len(y), start, stop)
             else: # "cut in horizontal direction"
                 sub = sl.box(start, stop, 0, len(x))
-            LOG.debug(f'next {orientation} block on {box} is {sub}')
+            LOG.debug('next %s block on %s is %s', 'horizontal'
+            if choose_vertical else 'vertical',
+                      box, sub)
             recursive_x_y_cut(sl.compose(box,sub),
                               mask=sl.cut(mask,sub) if isinstance(mask, np.ndarray)
                               else None)
