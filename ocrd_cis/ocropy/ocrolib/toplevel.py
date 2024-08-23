@@ -125,10 +125,14 @@ class CheckError(Exception):
         self.fun = kw.get("fun","?")
         self.var = kw.get("var","?")
         self.description = " ".join([strc(x) for x in args])
-
     def __str__(self):
-        return f"\nCheckError for argument {str(self.var)} of function {str(self.fun)}\n{self.description}"
-
+        result = "\nCheckError for argument "
+        result += str(self.var)
+        result += " of function "
+        result += str(self.fun)
+        result += "\n"
+        result += self.description
+        return result
 
 class CheckWarning(CheckError):
     def __init__(self,*args,**kw):
@@ -138,8 +142,14 @@ class CheckWarning(CheckError):
         CheckError.__init__(self, *args, **kw)
 
     def __str__(self):
-        return (f"\nCheckWarning for argument {str(self.var)} of function {str(self.fun)}\n{self.description} "
-                f"(This can happen occasionally during normal operations and isn't necessarily a bug or problem.)\n")
+        result = "\nCheckWarning for argument "
+        result += str(self.var)
+        result += " of function "
+        result += str(self.fun)
+        result += "\n"
+        result += self.description
+        result += "(This can happen occasionally during normal operations and isn't necessarily a bug or problem.)\n"
+        return result
 
 def checktype(value,type_):
     """Check value against the type spec.  If everything
@@ -201,7 +211,7 @@ def checks(*types,**ktypes):
                     e.var = var
                     raise e
                 except:
-                    LOG.critical(f"unknown exception while checking function: '{name}'")
+                    LOG.critical("unknown exception while checking function: '%s'", name)
                     raise
             result = f(*args,**kw)
             checktype(result,kw.get("_",True))
@@ -215,9 +225,9 @@ def makeargcheck(message,warning=0):
         def wrapper(arg):
             if not f(arg):
                 if warning:
-                    raise CheckWarning(f"{strc(arg)} of type {str(type(arg))}: {str(message)}")
+                    raise CheckWarning(strc(arg)+" of type "+str(type(arg))+": "+str(message))
                 else:
-                    raise CheckError(f"{strc(arg)} of type {str(type(arg))}: {str(message)}")
+                    raise CheckError(strc(arg)+" of type "+str(type(arg))+": "+str(message))
         return wrapper
     return decorator
 
