@@ -189,8 +189,8 @@ def estimate_thresholds(flat, bignore=0.1, escale=1.0, lo=5, hi=90):
         # significant variance; this makes the percentile
         # based low and high estimates more reliable
         e = escale
-        v = est - filters.gaussian_filter(est, e*20.0)
-        v = filters.gaussian_filter(v ** 2, e*20.0) ** 0.5
+        v = est - filters.gaussian_filter(est, e * 20.0)
+        v = filters.gaussian_filter(v ** 2, e * 20.0) ** 0.5
         v = (v > 0.3 * np.amax(v))
         v = morphology.binary_dilation(v, structure=np.ones((int(e * 50), 1)))
         v = morphology.binary_dilation(v, structure=np.ones((1, int(e * 50))))
@@ -491,8 +491,8 @@ def compute_images(binary, scale, maximages=5):
     v_opened = morph.rb_opening(images, (odd(scale/2), 1))
     DSAVE('images2_v-opened', v_opened+0.6*binary)
     # 3- close whatever remains
-    closed = morph.rb_closing(h_opened&v_opened, (odd(2*scale), odd(2*scale)))
-    DSAVE('images3_closed', closed + 0.6*binary)
+    closed = morph.rb_closing(h_opened&v_opened, (odd(2*scale),odd(2*scale)))
+    DSAVE('images3_closed', closed+0.6*binary)
     # 4- reconstruct the losses up to a certain distance
     #    to avoid creeping into pure h/v-lines again but still
     #    cover most of the large object
@@ -501,12 +501,12 @@ def compute_images(binary, scale, maximages=5):
     images = morph.rb_reconstruction(closed, images, step=2, maxsteps=scale)
     DSAVE('images4_reconstructed', images+0.6*binary)
     # 5- select nbest
-    images = morph.select_regions(images, sl.area, min=(4*scale)**2, nbest=maximages)
+    images = morph.select_regions(images,sl.area,min=(4*scale)**2,nbest=maximages)
     DSAVE('images5_selected', images+0.6*binary)
     if not images.any():
         return np.zeros_like(binary, int)
     # 6- dilate a little to get a smooth contour without gaps
-    dilated = morph.r_dilation(images, (odd(scale), odd(scale)))
+    dilated = morph.r_dilation(images, (odd(scale),odd(scale)))
     images = morph.propagate_labels_majority(binary, dilated+1)
     images = morph.spread_labels(images, maxdist=scale)==2
     images, _ = morph.label(images)
@@ -1969,7 +1969,7 @@ def lines2regions(binary, llabels,
                                              partitions[:,gap:]>0)[0])))
                                  for gap in x_gaps]
             if debug: LOG.debug('   y_partitionscores {} x_partitionscores {}'.format(
-                y_partitionscores, x_partitionscores))
+                    y_partitionscores, x_partitionscores))
             # Now identify those gaps with the largest overall score
             y_allowed = y_partitionscores == np.max(y_partitionscores, initial=0)
             x_allowed = x_partitionscores == np.max(x_partitionscores, initial=0)
@@ -2062,7 +2062,7 @@ def lines2regions(binary, llabels,
             return
         # otherwise: cut on gaps
         LOG.debug('cutting %s on %s into %s', 'vertically'
-        if choose_vertical else 'horizontally',
+                  if choose_vertical else 'horizontally',
                   box, gaps)
         cuts = list(zip(np.insert(gaps, 0, 0), np.append(gaps, lim)))
         if choose_vertical:
@@ -2079,7 +2079,7 @@ def lines2regions(binary, llabels,
             else: # "cut in horizontal direction"
                 sub = sl.box(start, stop, 0, len(x))
             LOG.debug('next %s block on %s is %s', 'horizontal'
-            if choose_vertical else 'vertical',
+                      if choose_vertical else 'vertical',
                       box, sub)
             recursive_x_y_cut(sl.compose(box,sub),
                               mask=sl.cut(mask,sub) if isinstance(mask, np.ndarray)

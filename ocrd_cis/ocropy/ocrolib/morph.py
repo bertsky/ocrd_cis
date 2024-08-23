@@ -349,10 +349,10 @@ def all_neighbors(image, dist=1, bg=NaN):
     q = 100000
     assert amax(image)<q
     assert amin(image)>=0
-    u = unique(q*image+shift(image, (dist, 0), order=0, cval=bg))
-    d = unique(q*image+shift(image, (-dist, 0), order=0, cval=bg))
-    l = unique(q*image+shift(image, (0, dist), order=0, cval=bg))
-    r = unique(q*image+shift(image, (0, -dist), order=0, cval=bg))
+    u = unique(q*image+shift(image,(dist,0),order=0,cval=bg))
+    d = unique(q*image+shift(image,(-dist,0),order=0,cval=bg))
+    l = unique(q*image+shift(image,(0,dist),order=0,cval=bg))
+    r = unique(q*image+shift(image,(0,-dist),order=0,cval=bg))
     all = unique(r_[u,d,l,r])
     all = all[all!=bg]
     all = c_[all//q,all%q]
