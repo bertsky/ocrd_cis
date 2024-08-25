@@ -8,13 +8,11 @@ from shapely.geometry import Polygon
 from shapely.prepared import prep
 
 from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
-from ocrd import Processor
-from ocrd.processor import OcrdPageResult, OcrdPageResultImage
+from ocrd import Processor, OcrdPageResult, OcrdPageResultImage
 from ocrd_utils import (
     bbox_from_polygon,
     coordinates_of_segment,
     crop_image,
-    getLogger,
     image_from_polygon,
     polygon_from_points,
     polygon_mask,
@@ -25,14 +23,9 @@ from .ocrolib import midrange, morph
 
 
 class OcropyClip(Processor):
-    logger: Logger
-
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-clip'
-
-    def setup(self):
-        self.logger = getLogger('processor.OcropyClip')
 
     def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: str = None) -> OcrdPageResult:
         """Clip text regions / lines of a page at intersections with neighbours.

@@ -4,8 +4,7 @@ from logging import Logger
 
 from ocrd_utils import getLogger
 from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage, PageType
-from ocrd import Processor
-from ocrd.processor import OcrdPageResult, OcrdPageResultImage
+from ocrd import Processor, OcrdPageResult, OcrdPageResultImage
 
 from . import common
 from .common import pil2array
@@ -16,14 +15,9 @@ def deskew(pil_image, maxskew=2):
     return angle
 
 class OcropyDeskew(Processor):
-    logger: Logger
-
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-deskew'
-
-    def setup(self):
-        self.logger = getLogger('processor.OcropyDeskew')
 
     def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Deskew the pages or regions of the workspace.

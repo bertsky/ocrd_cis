@@ -7,9 +7,7 @@ from os import makedirs, remove
 from os.path import abspath, dirname, exists, join, isfile
 
 from ocrd_models import OcrdPage
-from ocrd import Processor, Workspace
-from ocrd.processor import OcrdPageResult
-from ocrd_utils import getLogger
+from ocrd import Processor, Workspace, OcrdPageResult
 
 from .ocropus_rtrain import *
 from .binarize import binarize
@@ -30,9 +28,7 @@ def resize_keep_ratio(image, baseheight=48):
 
 
 class OcropyTrain(Processor):
-    logger: Logger
     modelpath: str
-    old_cwd: str
     outputpath: str
 
     @property
@@ -40,7 +36,6 @@ class OcropyTrain(Processor):
         return 'ocrd-cis-ocropy-train'
 
     def setup(self):
-        self.logger = getLogger('processor.OcropyTrain')
         if 'model' in self.parameter:
             model = self.parameter['model']
             try:

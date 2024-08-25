@@ -16,7 +16,6 @@ from shapely.validation import explain_validity
 from shapely import set_precision
 
 from ocrd_utils import (
-    getLogger,
     coordinates_of_segment,
     coordinates_for_segment,
     points_from_polygon,
@@ -243,21 +242,17 @@ def masks2polygons(logger: Logger, bg_labels, baselines, fg_bin, name, min_area=
 
 
 class OcropySegment(Processor):
-    logger: Logger
-
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-segment'
 
-    def setup(self):
-        self.logger = getLogger('processor.OcropySegment')
-
     def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Segment pages into regions+lines, tables into cells+lines, or regions into lines.
-        
+
         Open and deserialise PAGE input file and its respective images,
         then iterate over the element hierarchy down to the requested level.
-        
+
+        \b
         Depending on ``level-of-operation``, consider existing segments:
         - If ``overwrite_separators=True`` on ``page`` level, then
           delete any SeparatorRegions.
@@ -270,12 +265,13 @@ class OcropySegment(Processor):
         - If ``overwrite_order=True`` on ``page`` or ``table`` level, then
           delete the reading order OrderedGroup entry corresponding
           to the (page/table) segment.
-        
+
         Next, get each element image according to the layout annotation (from
         the alternative image of the page/region, or by cropping via coordinates
         into the higher-level image) in binarized form, and represent it as an array
         with non-text regions and (remaining) text neighbours suppressed.
-        
+
+        \b
         Then compute a text line segmentation for that array (as a label mask).
         When ``level-of-operation`` is ``page`` or ``table``, this also entails
         detecting
@@ -284,25 +280,26 @@ class OcropySegment(Processor):
         - up to ``maxcolseps`` background column separators
         before text line segmentation itself, as well as aggregating text lines
         to text regions afterwards.
-        
+
         Text regions are detected via a hybrid variant recursive X-Y cut algorithm
         (RXYC): RXYC partitions the binarized image in top-down manner by detecting
         horizontal or vertical gaps. This implementation uses the bottom-up text line
         segmentation to guide the search, and also uses both pre-existing and newly
         detected separators to alternatively partition the respective boxes into
         non-rectangular parts.
-        
+
         During line segmentation, suppress the foreground of all previously annotated
         regions (of any kind) and lines, except if just removed due to ``overwrite``.
         During region aggregation however, combine the existing separators with the
         new-found separators to guide the column search.
-        
+
         All detected segments (both text line and text region) are sorted according
         to their reading order (assuming a top-to-bottom, left-to-right ordering).
         When ``level-of-operation`` is ``page``, prefer vertical (column-first)
         succession of regions. When it is ``table``, prefer horizontal (row-first)
         succession of cells.
-        
+
+        \b
         Then for each resulting segment label, convert its background mask into
         polygon outlines by finding the outer contours consistent with the element's
         polygon outline. Annotate the result by adding it as a new TextLine/TextRegion:
@@ -314,7 +311,7 @@ class OcropySegment(Processor):
         - If it is ``page``, then append the new lines to their respective regions,
           and append the new regions to the page.
           (Also, create an OrderedGroup for it in the ReadingOrder.)
-        
+
         Produce a new output file by serialising the resulting hierarchy.
         """
         # FIXME: allow passing a-priori info on reading order / textline order
@@ -495,13 +492,13 @@ class OcropySegment(Processor):
         Given a PageType, TableRegionType or TextRegionType ``element``, and
         a corresponding binarized PIL.Image object ``image`` with coordinate
         metadata ``coords``, run line segmentation with Ocropy.
-        
+
         If operating on the full page (or table), then also detect horizontal
         and vertical separators, and aggregate the lines into text regions
         afterwards.
-        
+
         Add the resulting sub-segments to the parent ``element``.
-        
+
         If ``ignore`` is not empty, then first suppress all foreground components
         in any of those segments' coordinates during segmentation, and if also
         in full page/table mode, then combine all separators among them with the
@@ -773,7 +770,7 @@ class OcropySegment(Processor):
 
 def polygon_for_parent(polygon, parent):
     """Clip polygon to parent polygon range.
-    
+
     (Should be moved to ocrd_utils.coordinates_for_segment.)
     """
     childp = Polygon(polygon)
@@ -986,7 +983,7 @@ def join_baselines(logger: Logger, baselines, loc=''):
 
 def page_get_reading_order(ro, rogroup):
     """Add all elements from the given reading order group to the given dictionary.
-    
+
     Given a dict ``ro`` from layout element IDs to ReadingOrder element objects,
     and an object ``rogroup`` with additional ReadingOrder element objects,
     add all references to the dict, traversing the group recursively.
@@ -1006,10 +1003,10 @@ def page_get_reading_order(ro, rogroup):
 
 def page_add_to_reading_order(rogroup, region_id, index=None):
     """Add a region reference to an un/ordered RO group.
-    
+
     Given a ReadingOrder group ``rogroup`` (of any type),
     append a reference to region ``region_id`` to it.
-    
+
     If ``index`` is given, use that as position and return
     incremented by one. (This must be an integer if ``rogroup``
     is an OrderedGroup(Indexed).
@@ -1025,16 +1022,16 @@ def page_add_to_reading_order(rogroup, region_id, index=None):
 
 def page_subgroup_in_reading_order(logger: Logger, roelem):
     """Replace given RO element by an equivalent OrderedGroup.
-    
+
     Given a ReadingOrder element ``roelem`` (of any type),
     first look up its parent group. Remove it from the respective
     member list (of its region refs or un/ordered groups),
     even if it already was an OrderedGroup(Indexed).
-    
+
     Then instantiate an empty OrderedGroup(Indexed), referencing
     the same region as ``roelem`` (and using the same index, if any).
     Add that group to the parent instead.
-    
+
     Return the new group object.
     """
     if not roelem:

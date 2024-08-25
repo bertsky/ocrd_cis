@@ -11,7 +11,6 @@ from rapidfuzz.distance import Levenshtein
 from ocrd import Processor, OcrdPage, OcrdPageResult
 from ocrd.decorators import ocrd_cli_options
 from ocrd.decorators import ocrd_cli_wrap_processor
-from ocrd_utils import getLogger
 from ocrd_utils import getLevelName
 from ocrd_models.ocrd_page import TextRegionType, TextEquivType
 from ocrd_cis import JavaAligner

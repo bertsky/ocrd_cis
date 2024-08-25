@@ -9,7 +9,6 @@ from shapely.geometry import Polygon, LineString
 from shapely.prepared import prep
 
 from ocrd_utils import (
-    getLogger,
     coordinates_of_segment,
     coordinates_for_segment,
     points_from_polygon,
@@ -17,8 +16,7 @@ from ocrd_utils import (
     transform_coordinates,
 )
 from ocrd_models.ocrd_page import BaselineType, PageType, OcrdPage
-from ocrd import Processor
-from ocrd.processor import OcrdPageResult
+from ocrd import Processor, OcrdPageResult
 
 from .ocrolib import midrange, morph
 from .common import (
@@ -43,14 +41,9 @@ from .segment import (
 )
 
 class OcropyResegment(Processor):
-    logger: Logger
-
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-resegment'
-
-    def setup(self):
-        self.logger = getLogger('processor.OcropyResegment')
 
     def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Resegment lines of the workspace.

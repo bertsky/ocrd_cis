@@ -10,10 +10,9 @@ from PIL import Image
 
 from rapidfuzz.distance import Levenshtein
 
-from ocrd_utils import coordinates_for_segment, getLogger, points_from_polygon, polygon_from_bbox
+from ocrd_utils import coordinates_for_segment, points_from_polygon, polygon_from_bbox
 from ocrd_models.ocrd_page import CoordsType, GlyphType, OcrdPage, TextEquivType, WordType
-from ocrd import Processor
-from ocrd.processor import OcrdPageResult
+from ocrd import Processor, OcrdPageResult
 
 from .common import check_line, pil2array
 from .ocrolib import lstm, load_object, midrange
@@ -67,7 +66,6 @@ def recognize(image, pad, network, check=True):
 
 
 class OcropyRecognize(Processor):
-    logger: Logger
     network: Any
     pad: int
 
@@ -76,7 +74,6 @@ class OcropyRecognize(Processor):
         return 'ocrd-cis-ocropy-recognize'
 
     def setup(self):
-        self.logger = getLogger('processor.OcropyRecognize')
         self.pad = 16
         # from ocropus-rpred:
         self.network = load_object(self.get_model(), verbose=1)

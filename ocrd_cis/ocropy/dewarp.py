@@ -5,7 +5,6 @@ import numpy as np
 
 from ocrd import Processor
 from ocrd.processor import OcrdPageResult, OcrdPageResultImage
-from ocrd_utils import getLogger
 from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
 
 from .ocrolib import lineest
@@ -54,14 +53,11 @@ def padvert(image, range_):
     return array2pil(line)
 
 class OcropyDewarp(Processor):
-    logger: Logger
-
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-dewarp'
 
     def setup(self):
-        self.logger = getLogger('processor.OcropyDewarp')
         # defaults from ocrolib.lineest:
         self.lnorm = lineest.CenterNormalizer(
             params=(self.parameter['range'],

@@ -4,20 +4,14 @@ from logging import Logger
 
 from ocrd_utils import getLogger
 from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
-from ocrd import Processor
-from ocrd.processor import OcrdPageResult, OcrdPageResultImage
+from ocrd import Processor, OcrdPageResult, OcrdPageResultImage
 
 from .common import determine_zoom, remove_noise
 
 class OcropyDenoise(Processor):
-    logger: Logger
-
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-denoise'
-
-    def setup(self):
-        self.logger = getLogger('processor.OcropyDenoise')
 
     def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Despeckle the pages / regions / lines of the workspace.

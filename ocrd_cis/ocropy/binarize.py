@@ -8,8 +8,7 @@ from PIL import Image
 
 from ocrd_utils import getLogger
 from ocrd_models.ocrd_page import AlternativeImageType, OcrdPage
-from ocrd import Processor
-from ocrd.processor import OcrdPageResult, OcrdPageResultImage
+from ocrd import Processor, OcrdPageResult, OcrdPageResultImage
 
 from . import common
 from .common import array2pil, determine_zoom, pil2array, remove_noise
@@ -51,14 +50,11 @@ def binarize(logger: Logger, pil_image, method='ocropy', maxskew=2, threshold=0.
         return Image.fromarray(th), 0
 
 class OcropyBinarize(Processor):
-    logger: Logger
-
     @property
     def executable(self):
         return 'ocrd-cis-ocropy-binarize'
 
     def setup(self):
-        self.logger = getLogger('processor.OcropyBinarize')
         method = self.parameter['method']
         if self.parameter['grayscale'] and method != 'ocropy':
             self.logger.critical(f'Requested method {method} does not support grayscale normalized output')
