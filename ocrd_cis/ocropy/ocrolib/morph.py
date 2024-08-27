@@ -343,7 +343,7 @@ def select_regions(binary,f,min=0,nbest=100000):
     return keep[labels]
 
 @checks(SEGMENTATION)
-def all_neighbors(image, dist=1, bg=NaN):
+def all_neighbors(image, dist=1, bg=float('nan')):
     """Given an image with labels, find all pairs of labels
     that are directly (up to ``dist``) neighboring each other, ignoring the label ``bg``."""
     q = 100000
