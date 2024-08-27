@@ -12,17 +12,9 @@
 				"preprocessing/optimization/grayscale_normalization",
 				"preprocessing/optimization/deskewing"
 			],
-			"input_file_grp": [
-				"OCR-D-IMG",
-				"OCR-D-SEG-BLOCK",
-				"OCR-D-SEG-LINE"
-			],
-			"output_file_grp": [
-				"OCR-D-IMG-BIN",
-				"OCR-D-SEG-BLOCK",
-				"OCR-D-SEG-LINE"
-			],
-			"description": "Binarize (and optionally deskew/despeckle) pages / regions / lines with ocropy",
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
+			"description": "Binarize (and optionally deskew/despeckle) pages / regions / lines with Ocropy v1",
 			"parameters": {
 				"method": {
 					"type": "string",
@@ -75,15 +67,9 @@
 			"steps": [
 				"preprocessing/optimization/deskewing"
 			],
-			"input_file_grp": [
-				"OCR-D-SEG-BLOCK",
-				"OCR-D-SEG-LINE"
-			],
-			"output_file_grp": [
-				"OCR-D-SEG-BLOCK",
-				"OCR-D-SEG-LINE"
-			],
-			"description": "Deskew regions with ocropy (by annotating orientation angle and adding AlternativeImage)",
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
+			"description": "Deskew regions with Ocropy v1 (by annotating orientation angle and adding AlternativeImage)",
 			"parameters": {
 				"maxskew": {
 					"type": "number",
@@ -106,17 +92,9 @@
 			"steps": [
 				"preprocessing/optimization/despeckling"
 			],
-			"input_file_grp": [
-				"OCR-D-IMG",
-				"OCR-D-SEG-BLOCK",
-				"OCR-D-SEG-LINE"
-			],
-			"output_file_grp": [
-				"OCR-D-IMG-DESPECK",
-				"OCR-D-SEG-BLOCK",
-				"OCR-D-SEG-LINE"
-			],
-			"description": "Despeckle pages / regions / lines with ocropy",
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
+			"description": "Despeckle pages / regions / lines with Ocropy v1",
 			"parameters": {
 				"noise_maxsize": {
 					"type": "number",
@@ -147,14 +125,8 @@
 				"layout/segmentation/region",
 				"layout/segmentation/line"
 			],
-			"input_file_grp": [
-				"OCR-D-SEG-BLOCK",
-				"OCR-D-SEG-LINE"
-			],
-			"output_file_grp": [
-				"OCR-D-SEG-BLOCK",
-				"OCR-D-SEG-LINE"
-			],
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
 			"description": "Clip text regions / lines at intersections with neighbours",
 			"parameters": {
 				"level-of-operation": {
@@ -185,12 +157,8 @@
 			"steps": [
 				"layout/segmentation/line"
 			],
-			"input_file_grp": [
-				"OCR-D-SEG-LINE"
-			],
-			"output_file_grp": [
-				"OCR-D-SEG-LINE"
-			],
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
 			"description": "Improve coordinates of text lines",
 			"parameters": {
 				"level-of-operation": {
@@ -245,12 +213,8 @@
 				"preprocessing/optimization/dewarping"
 			],
 			"description": "Dewarp line images with ocropy",
-			"input_file_grp": [
-				"OCR-D-SEG-LINE"
-			],
-			"output_file_grp": [
-				"OCR-D-SEG-LINE"
-			],
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
 			"parameters": {
 				"dpi": {
 					"type": "number",
@@ -286,15 +250,9 @@
 			"steps": [
 				"recognition/text-recognition"
 			],
-			"description": "Recognize text in (binarized+deskewed+dewarped) lines with ocropy",
-			"input_file_grp": [
-				"OCR-D-SEG-LINE",
-				"OCR-D-SEG-WORD",
-				"OCR-D-SEG-GLYPH"
-			],
-			"output_file_grp": [
-				"OCR-D-OCR-OCRO"
-			],
+			"description": "Recognize text in (binarized+deskewed+dewarped) lines with Ocropy v1",
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
 			"parameters": {
 				"textequiv_level": {
 					"type": "string",
@@ -345,14 +303,9 @@
 				"layout/segmentation/region",
 				"layout/segmentation/line"
 			],
-			"input_file_grp": [
-				"OCR-D-GT-SEG-BLOCK",
-				"OCR-D-SEG-BLOCK"
-			],
-			"output_file_grp": [
-				"OCR-D-SEG-LINE"
-			],
-			"description": "Segment pages into regions and lines, tables into cells and lines, or regions into lines with ocropy",
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
+			"description": "Segment pages into regions and lines, tables into cells and lines, or regions into lines with Ocropy v1",
 			"parameters": {
 				"dpi": {
 					"type": "number",
@@ -444,11 +397,9 @@
 			"steps": [
 				"recognition/text-recognition"
 			],
-			"input_file_grp": [
-				"OCR-D-GT-SEG-BLOCK",
-				"OCR-D-SEG-BLOCK"
-			],
-			"description": "train model with ground truth from mets data",
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
+			"description": "train Ocropy v1 text recognition model with PAGE ground truth from the input fileGrp extracted as file pairs into the output fileGrp",
 			"parameters": {
 				"textequiv_level": {
 					"type": "string",
@@ -470,7 +421,8 @@
 				},
 				"outputpath": {
 					"type": "string",
-					"description": "(existing) path for the trained model"
+					"default": "output",
+					"description": "directory path for the trained model"
 				}
 			}
 		},
@@ -482,15 +434,9 @@
 			"steps": [
 				"recognition/post-correction"
 			],
-			"input_file_grp": [
-				"OCR-D-OCR-1",
-				"OCR-D-OCR-2",
-				"OCR-D-OCR-N"
-			],
-			"output_file_grp": [
-				"OCR-D-ALIGNED"
-			],
-			"description": "Align multiple OCRs and/or GTs"
+			"input_file_grp_cardinality": [2, -1],
+			"output_file_grp_cardinality": 1,
+			"description": "Align multiple OCRs and/or GTs textually on line/word level"
 		},
 		"ocrd-cis-postcorrect": {
 			"executable": "ocrd-cis-postcorrect",
@@ -501,12 +447,8 @@
 				"recognition/post-correction"
 			],
 			"description": "Post correct OCR results",
-			"input_file_grp": [
-				"OCR-D-LINE-ALIGNED"
-			],
-			"output_file_grp": [
-				"OCR-D-POST-CORRECTED"
-			],
+			"input_file_grp_cardinality": 1,
+			"output_file_grp_cardinality": 1,
 			"parameters": {
 				"maxCandidates": {
 					"description": "Maximum number of considered correction candidates per suspicious token",
