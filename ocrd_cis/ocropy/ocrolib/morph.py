@@ -429,7 +429,7 @@ def reading_order(seg,rl=False,bt=False):
         segmap[1:] = 1
         return segmap
     def pos(f,l):
-        return array([f(x) if x else nan for x in l])
+        return array([f(x) if x else float('nan') for x in l])
     ys = pos(sl.ycenter,objects)
     yorder = argsort(ys)[::-1 if bt else 1]
     groups = [[yorder[0]]]
