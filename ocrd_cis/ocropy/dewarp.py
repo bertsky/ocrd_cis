@@ -57,17 +57,6 @@ class OcropyDewarp(Processor):
     def executable(self):
         return 'ocrd-cis-ocropy-dewarp'
 
-    def setup(self):
-        # defaults from ocrolib.lineest:
-        self.lnorm = lineest.CenterNormalizer(
-            params=(self.parameter['range'],
-                    self.parameter['smoothness'],
-                    # let's not expose this for now
-                    # (otherwise we must explain mutual
-                    #  dependency between smoothness
-                    #  and extra params)
-                    0.3))
-
     def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
         """Dewarp the lines of the workspace.
 
@@ -94,6 +83,16 @@ class OcropyDewarp(Processor):
         page_image, page_xywh, page_image_info = self.workspace.image_from_page(page, page_id)
         zoom = determine_zoom(self.logger, page_id, self.parameter['dpi'], page_image_info)
 
+        # defaults from ocrolib.lineest:
+        lnorm = lineest.CenterNormalizer(
+            params=(self.parameter['range'],
+                    self.parameter['smoothness'],
+                    # let's not expose this for now
+                    # (otherwise we must explain mutual
+                    #  dependency between smoothness
+                    #  and extra params)
+                    0.3))
+
         regions = page.get_AllRegions(classes=['Text'], order='reading-order')
         if not regions:
             self.logger.warning(f'Page "{page_id}" contains no text regions')
@@ -107,8 +106,8 @@ class OcropyDewarp(Processor):
                 self.logger.info(f"About to dewarp page '{page_id}' region '{region.id}' line '{line.id}'")
                 try:
                     dew_image = dewarp(
-                        line_image, self.lnorm, check=True, max_neighbour=self.parameter['max_neighbour'], zoom=zoom)
-                except InvalidLine as err:
+                        line_image, lnorm, check=True, max_neighbour=self.parameter['max_neighbour'], zoom=zoom)
+                except (InvalidLine, AssertionError) as err:
                     self.logger.error(f'Cannot dewarp line "{line.id}": {err}')
                     continue
                 except InadequateLine as err:
