@@ -45,7 +45,7 @@ def recognize(image, pad, network, check=True):
     pred = network.predictString(line)
 
     # getting confidence
-    result = lstm.translate_back(network.outputs, pos=1)
+    result = lstm.translate_back(network.outputs, pos=1) # raw positions
     scale = len(raw_line.T) * 1.0 / (len(network.outputs) - 2 * pad)
 
     clist = []
@@ -68,6 +68,8 @@ def recognize(image, pad, network, check=True):
 class OcropyRecognize(Processor):
     network: Any
     pad: int
+    # lstm is not thread-safe (.outputs, .last_n as side effects etc)
+    max_workers = 1
 
     @property
     def executable(self):
@@ -191,7 +193,7 @@ class OcropyRecognize(Processor):
             try:
                 linepred, clist, rlist, confidlist = recognize(final_img, self.pad, self.network, check=True)
             except Exception as err:
-                self.logger.debug(f'Error processing line "{line.id}": {err}')
+                self.logger.debug(f'Error processing line "{line.id}": {str(err) or err.__class__.__name__}')
                 continue
             self.logger.debug(f"OCR '{line.id}': '{linepred}'")
             edits += Levenshtein.distance(linepred, linegt)
