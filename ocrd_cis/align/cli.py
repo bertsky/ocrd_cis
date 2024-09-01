@@ -229,8 +229,8 @@ class Alignment:
     file_grp: str
     pcgts: OcrdPage
     region: TextRegionType
-    alignment: Alignment
-    def __init__(self, file_grp: str, pcgts: OcrdPage, region: TextRegionType, alignment: Alignment):
+    alignment: dict
+    def __init__(self, file_grp: str, pcgts: OcrdPage, region: TextRegionType, alignment: dict):
         self.file_grp = file_grp
         self.pcgts = pcgts
         self.region = region
