@@ -643,7 +643,7 @@ def compute_seplines(binary, scale, maxseps=0):
                 sepdists.append(np.median(subdistances))
                 #LOG.debug("adding sublabel %d as sep %d (size %d [%s])", sublabel, numsep, sublabelsize, str(sublabelslice))
     sepsizes = np.array(sepsizes)
-    sepslices = np.array(sepslices)
+    sepslices = np.array(sepslices, dtype=object)
     LOG.debug("detected %d separator candidates", numsep)
     DSAVE("seps-raw", sepmap[labels])
     # now dilate+erode to link neighbouring candidates,
