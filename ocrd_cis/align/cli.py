@@ -2,7 +2,7 @@ from __future__ import absolute_import
 import click
 import json
 import os
-import Levenshtein
+from rapidfuzz.distance import Levenshtein
 from ocrd import Processor
 from ocrd.decorators import ocrd_cli_options
 from ocrd.decorators import ocrd_cli_wrap_processor
