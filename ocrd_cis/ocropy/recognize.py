@@ -68,8 +68,6 @@ def recognize(image, pad, network, check=True):
 class OcropyRecognize(Processor):
     network: Any
     pad: int
-    # lstm is not thread-safe (.outputs, .last_n as side effects etc)
-    max_workers = 1
 
     @property
     def executable(self):
