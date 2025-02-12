@@ -3,6 +3,7 @@ jobs:
   test-python3:
     docker:
       - image: ocrd/core
+    resource_class: large
     environment:
       PIP: pip3
       PYTHON: python3
@@ -10,7 +11,7 @@ jobs:
       - checkout
       - run: apt-get update && apt-get -y install default-jre-headless
       - run: make install
-      - run: make test V=""
+      - run: make -j test V=""
 
   deploy-docker:
     docker:
