@@ -30,4 +30,4 @@ jobs:
       - name: Install ocrd_cis
         run: make install
       - name: Test ocrd_cis
-        run: make test V=""
+        run: make test V=
