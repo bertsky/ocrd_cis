@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from typing import Optional
 
 import warnings
 import logging
@@ -10,7 +11,7 @@ from scipy import stats, signal
 from skimage.morphology import medial_axis
 import networkx as nx
 from PIL import Image
-
+from ocrd_models import OcrdExif
 from . import ocrolib
 from .ocrolib import morph, psegutils, sl
 # for decorators (type-checks etc):
@@ -2102,3 +2103,16 @@ def lines2regions(binary, llabels,
     #     rlabels[region_hull] = region
     # DSAVE('rlabels_closed', rlabels)
     return rlabels
+
+def determine_zoom(logger: logging.Logger, page_id: Optional[str], dpi: float, page_image_info: OcrdExif) -> float:
+    if dpi > 0:
+        zoom = 300.0/dpi
+    elif page_image_info.resolution != 1:
+        dpi = page_image_info.resolution
+        if page_image_info.resolutionUnit == 'cm':
+            dpi *= 2.54
+        logger.info(f"Page '{page_id}' uses {dpi} DPI.")
+        zoom = 300.0/dpi
+    else:
+        zoom = 1
+    return zoom

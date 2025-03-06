@@ -343,7 +343,7 @@ def select_regions(binary,f,min=0,nbest=100000):
     return keep[labels]
 
 @checks(SEGMENTATION)
-def all_neighbors(image, dist=1, bg=NaN):
+def all_neighbors(image, dist=1, bg=float('nan')):
     """Given an image with labels, find all pairs of labels
     that are directly (up to ``dist``) neighboring each other, ignoring the label ``bg``."""
     q = 100000
@@ -429,7 +429,7 @@ def reading_order(seg,rl=False,bt=False):
         segmap[1:] = 1
         return segmap
     def pos(f,l):
-        return array([f(x) if x else nan for x in l])
+        return array([f(x) if x else float('nan') for x in l])
     ys = pos(sl.ycenter,objects)
     yorder = argsort(ys)[::-1 if bt else 1]
     groups = [[yorder[0]]]

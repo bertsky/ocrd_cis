@@ -75,7 +75,7 @@ class CenterNormalizer:
             plt.plot(self.center)
             plt.ginput(1,1000)
     def dewarp(self,img,cval=0,dtype=np.dtype('f')):
-        assert img.shape==self.shape
+        assert img.shape==self.shape, f"input shape {img.shape} deviates from measured shape {self.shape}"
         h,w = img.shape
         # The actual image img is embedded into a larger image by
         # adding vertical space on top and at the bottom (padding)
