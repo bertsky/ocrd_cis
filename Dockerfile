@@ -1,14 +1,22 @@
-FROM ocrd/core:v2.67.2 AS base
+ARG DOCKER_BASE_IMAGE
+FROM $DOCKER_BASE_IMAGE AS base
 ARG VCS_REF
 ARG BUILD_DATE
 LABEL \
-    maintainer="https://github.com/OCR-D/ocrd_cis/issues" \
+    maintainer="https://github.com/cisocrgroup/ocrd_cis/issues" \
     org.label-schema.vcs-ref=$VCS_REF \
-    org.label-schema.vcs-url="https://github.com/OCR-D/ocrd_cis" \
-    org.label-schema.build-date=$BUILD_DATE
+    org.label-schema.vcs-url="https://github.com/cisocrgroup/ocrd_cis" \
+    org.label-schema.build-date=$BUILD_DATE \
+    org.opencontainers.image.vendor="DFG-Funded Initiative for Optical Character Recognition Development" \
+    org.opencontainers.image.title="ocrd_cis" \
+    org.opencontainers.image.description="Ocropy OCR and CIS post-correction bindings" \
+    org.opencontainers.image.source="https://github.com/cisocrgroup/ocrd_cis" \
+    org.opencontainers.image.documentation="https://github.com/cisocrgroup/ocrd_cis/blob/${VCS_REF}/README.md" \
+    org.opencontainers.image.revision=$VCS_REF \
+    org.opencontainers.image.created=$BUILD_DATE \
+    org.opencontainers.image.base.name=ocrd/core
 
 ENV GITURL="https://github.com/cisocrgroup"
-ENV DOWNLOAD_URL="http://cis.lmu.de/~finkf"
 
 SHELL ["/bin/bash", "-c"]
 
@@ -51,19 +59,23 @@ RUN apt-get update \
 
 FROM base AS postcorrection
 # install ocrd_cis (python)
-VOLUME ["/data"]
+WORKDIR /build/ocrd_cis
 COPY --from=languagemodel /etc/profiler/languages /etc/profiler/languages
 COPY --from=profiler /apps/profiler /apps/
 COPY --from=profiler /usr/lib/x86_64-linux-gnu/libicuuc.so /usr/lib//x86_64-linux-gnu/
 COPY --from=profiler /usr/lib/x86_64-linux-gnu/libicudata.so /usr/lib//x86_64-linux-gnu/
 COPY --from=profiler /usr/lib//x86_64-linux-gnu/libxerces-c-3.2.so /usr/lib//x86_64-linux-gnu/
-COPY . /build/ocrd_cis
+COPY . .
+# prepackage ocrd-tool.json as ocrd-all-tool.json
+RUN ocrd ocrd-tool ocrd_cis/ocrd-tool.json dump-tools > $(dirname $(ocrd bashlib filename))/ocrd-all-tool.json
+# install everything and reduce image size
 RUN apt-get update \
 	&& apt-get -y install --no-install-recommends gcc wget default-jre-headless \
-	&& pushd /build/ocrd_cis \
 	&& make install \
 	# test always fail, resources not available for download. Resources should be made available
 	# somewhere else, e.g. github.com/OCR-D/assets
 	# && make test \
-	&& popd \
 	&& rm -rf /build/ocrd_cis
+
+WORKDIR /data
+VOLUME /data

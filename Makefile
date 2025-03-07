@@ -2,23 +2,28 @@ PY ?= python3
 PIP ?= pip3
 V ?= > /dev/null 2>&1
 PKG = ocrd_cis
-TAG = flobar/ocrd_cis
+DOCKER_TAG = ocrd/cis
+DOCKER_BASE_IMAGE = docker.io/ocrd/core:v3.1.0
 SHELL = bash
 
 install:
-	${PIP} install --upgrade pip .
-install-devel:
-	${PIP} install --upgrade pip -e .
+	${PIP} install .
+
+install-devel install-dev:
+	${PIP} install -e .
+
 uninstall:
 	${PIP} uninstall ${PKG}
 
 docker-build: Dockerfile
 	docker build \
+	--build-arg DOCKER_BASE_IMAGE=$(DOCKER_BASE_IMAGE) \
 	--build-arg VCS_REF=$$(git rev-parse --short HEAD) \
 	--build-arg BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-	-t $(TAG):latest .
+	-t $(DOCKER_TAG):latest .
+
 docker-push: docker-build
-	docker push $(TAG):latest
+	docker push $(DOCKER_TAG):latest
 
 TEST_SCRIPTS=$(sort $(filter-out tests/run_training_test.bash, $(wildcard tests/run_*.bash)))
 INDENT != MAX=; for NAME in $(TEST_SCRIPTS:tests/%=%); do if test $${\#MAX} -lt $${\#NAME}; then MAX=$${NAME//?/_}; fi; done; echo $$MAX
@@ -43,4 +48,4 @@ test: $(TEST_SCRIPTS)
 	@cat test_parallel.log
 	@$(RM) test_serially.log test_parallel.log
 
-.PHONY: install install-devel uninstall test docker-build docker-push
+.PHONY: install install-dev install-devel uninstall test docker-build docker-push
