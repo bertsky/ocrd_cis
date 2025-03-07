@@ -6,16 +6,36 @@ DOCKER_TAG = ocrd/cis
 DOCKER_BASE_IMAGE = docker.io/ocrd/core:v3.1.0
 SHELL = bash
 
+help:
+	@echo ""
+	@echo "  Targets"
+	@echo ""
+	@echo "    install          Install ocrd_cis"
+	@echo "    install-dev      Install in editable mode"
+	@echo "    build            Build source and binary distribution"
+	@echo "    docker           Build Docker image"
+	@echo "    test             Run unit tests"
+	@echo ""
+	@echo "  Variables"
+	@echo ""
+	@echo "    DOCKER_TAG   '$(DOCKER_TAG)'"
+	@echo "    PY           '$(PY)'"
+	@echo "    PIP          '$(PIP)'"
+
 install:
 	${PIP} install .
 
 install-devel install-dev:
 	${PIP} install -e .
 
+build:
+	${PIP} install build
+	${PY} -m build .
+
 uninstall:
 	${PIP} uninstall ${PKG}
 
-docker-build: Dockerfile
+docker-build docker: Dockerfile
 	docker build \
 	--build-arg DOCKER_BASE_IMAGE=$(DOCKER_BASE_IMAGE) \
 	--build-arg VCS_REF=$$(git rev-parse --short HEAD) \
@@ -48,4 +68,4 @@ test: $(TEST_SCRIPTS)
 	@cat test_parallel.log
 	@$(RM) test_serially.log test_parallel.log
 
-.PHONY: install install-dev install-devel uninstall test docker-build docker-push
+.PHONY: install install-dev install-devel build uninstall test docker docker-build docker-push
