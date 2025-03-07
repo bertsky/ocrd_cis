@@ -26,4 +26,6 @@ jobs:
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-      run: twine upload --verbose dist/ocrd*${{ github.ref_name }}*{tar.gz,whl}
+      run: |
+        version=${{ github.ref_name }}
+        twine upload --verbose dist/ocrd*${version:1}*{tar.gz,whl}
