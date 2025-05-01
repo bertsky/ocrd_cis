@@ -66,8 +66,11 @@ COPY --from=profiler /usr/lib/x86_64-linux-gnu/libicuuc.so /usr/lib//x86_64-linu
 COPY --from=profiler /usr/lib/x86_64-linux-gnu/libicudata.so /usr/lib//x86_64-linux-gnu/
 COPY --from=profiler /usr/lib//x86_64-linux-gnu/libxerces-c-3.2.so /usr/lib//x86_64-linux-gnu/
 COPY . .
+COPY ocrd-tool.json .
 # prepackage ocrd-tool.json as ocrd-all-tool.json
-RUN ocrd ocrd-tool ocrd_cis/ocrd-tool.json dump-tools > $(dirname $(ocrd bashlib filename))/ocrd-all-tool.json
+RUN ocrd ocrd-tool ocrd-tool.json dump-tools > $(dirname $(ocrd bashlib filename))/ocrd-all-tool.json
+# prepackage ocrd-all-module-dir.json
+RUN ocrd ocrd-tool ocrd-tool.json dump-module-dirs > $(dirname $(ocrd bashlib filename))/ocrd-all-module-dir.json
 # install everything and reduce image size
 RUN apt-get update \
 	&& apt-get -y install --no-install-recommends gcc wget default-jre-headless \
