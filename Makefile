@@ -2,8 +2,9 @@ PY ?= python3
 PIP ?= pip3
 V ?= > /dev/null 2>&1
 PKG = ocrd_cis
-DOCKER_TAG = ocrd/cis
-DOCKER_BASE_IMAGE = docker.io/ocrd/core:v3.1.0
+DOCKER_TAG ?= ocrd/cis
+DOCKER_BASE_IMAGE ?= docker.io/ocrd/core:latest
+DOCKER ?= docker
 SHELL = bash
 
 help:
@@ -36,14 +37,14 @@ uninstall:
 	${PIP} uninstall ${PKG}
 
 docker-build docker: Dockerfile
-	docker build \
+	$(DOCKER) build \
 	--build-arg DOCKER_BASE_IMAGE=$(DOCKER_BASE_IMAGE) \
 	--build-arg VCS_REF=$$(git rev-parse --short HEAD) \
 	--build-arg BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
 	-t $(DOCKER_TAG):latest .
 
 docker-push: docker-build
-	docker push $(DOCKER_TAG):latest
+	$(DOCKER) push $(DOCKER_TAG):latest
 
 TEST_SCRIPTS=$(sort $(filter-out tests/run_training_test.bash, $(wildcard tests/run_*.bash)))
 INDENT != MAX=; for NAME in $(TEST_SCRIPTS:tests/%=%); do if test $${\#MAX} -lt $${\#NAME}; then MAX=$${NAME//?/_}; fi; done; echo $$MAX
